@@ -21,7 +21,8 @@ const app = express();
 const PORT = process.env['PORT'] || 3001;
 
 // 信任代理设置（用于处理反向代理的头部信息）
-app.set('trust proxy', true);
+// 设置为1，因为Coolify部署环境通常有一个反向代理
+app.set('trust proxy', 1);
 
 // Swagger配置
 const swaggerOptions = {
@@ -81,6 +82,19 @@ const limiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  // 自定义keyGenerator，安全地处理IP地址，去除端口号
+  // 参考: https://github.com/express-rate-limit/express-rate-limit/wiki/Troubleshooting-Proxy-Issues
+  keyGenerator: (request, _response) => {
+    if (!request.ip) {
+      logger.warn('Warning: request.ip is missing!');
+      return request.socket.remoteAddress || 'unknown';
+    }
+
+    // 去除端口号，防止通过更改端口绕过限流
+    const cleanIp = request.ip.replace(/:\d+[^:]*$/, '');
+    logger.debug(`Rate limit key: ${cleanIp} (original: ${request.ip})`);
+    return cleanIp;
+  },
 });
 
 app.use('/api', limiter);
@@ -99,6 +113,22 @@ app.get('/health', (_req, res) => {
     environment: process.env['NODE_ENV'],
   });
 });
+
+// 代理配置测试端点（仅在开发环境启用）
+if (process.env['NODE_ENV'] === 'development') {
+  app.get('/debug/ip', (request, response) => {
+    response.json({
+      ip: request.ip,
+      ips: request.ips,
+      'x-forwarded-for': request.headers['x-forwarded-for'],
+      'x-real-ip': request.headers['x-real-ip'],
+      remoteAddress: request.socket.remoteAddress,
+      socket: {
+        remoteAddress: request.socket.remoteAddress,
+      },
+    });
+  });
+}
 
 // 路由
 app.use('/auth', authRoutes);
