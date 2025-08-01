@@ -247,8 +247,8 @@ export class AIModelService {
         data: {
           ...data,
           apiKeyEncrypted: encryptedApiKey,
-          parameters: data.parameters 
-            ? { ...existingModel.parameters, ...data.parameters }
+          parameters: data.parameters
+            ? { ...(existingModel.parameters as Record<string, any> || {}), ...data.parameters }
             : existingModel.parameters,
         },
         include: {

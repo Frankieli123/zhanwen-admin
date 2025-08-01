@@ -223,8 +223,8 @@ export class AppConfigService {
         where: { id },
         data: {
           ...data,
-          validationRules: data.validationRules 
-            ? { ...existingConfig.validationRules, ...data.validationRules }
+          validationRules: data.validationRules
+            ? { ...(existingConfig.validationRules as Record<string, any> || {}), ...data.validationRules }
             : existingConfig.validationRules,
         },
       });

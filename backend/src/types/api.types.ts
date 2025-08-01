@@ -1,3 +1,24 @@
+import { Request } from 'express';
+
+// 扩展 Express 命名空间以包含 Multer
+declare global {
+  namespace Express {
+    namespace Multer {
+      interface File {
+        fieldname: string;
+        originalname: string;
+        encoding: string;
+        mimetype: string;
+        size: number;
+        destination: string;
+        filename: string;
+        path: string;
+        buffer: Buffer;
+      }
+    }
+  }
+}
+
 // API响应类型
 export interface ApiResponse<T = any> {
   success: boolean;

@@ -1,4 +1,4 @@
-import jwt from 'jsonwebtoken';
+import jwt, { SignOptions } from 'jsonwebtoken';
 import { AdminUser } from '@prisma/client';
 
 const JWT_SECRET = process.env['JWT_SECRET'] || 'default-jwt-secret-change-in-production';
@@ -30,7 +30,7 @@ export const generateToken = (user: AdminUser): string => {
     expiresIn: JWT_EXPIRES_IN,
     issuer: 'divination-admin',
     audience: 'divination-admin-users',
-  });
+  } as SignOptions);
 };
 
 /**
@@ -80,7 +80,7 @@ export const refreshToken = (token: string): string => {
       expiresIn: JWT_EXPIRES_IN,
       issuer: 'divination-admin',
       audience: 'divination-admin-users',
-    });
+    } as SignOptions);
   } catch (error) {
     throw new Error('Token刷新失败');
   }

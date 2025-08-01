@@ -191,8 +191,8 @@ export class AIProviderService {
         data: {
           ...data,
           supportedModels: data.supportedModels || existingProvider.supportedModels,
-          metadata: data.metadata 
-            ? { ...existingProvider.metadata, ...data.metadata }
+          metadata: data.metadata
+            ? { ...(existingProvider.metadata as Record<string, any> || {}), ...data.metadata }
             : existingProvider.metadata,
         },
       });

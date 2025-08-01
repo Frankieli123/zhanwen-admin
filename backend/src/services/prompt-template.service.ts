@@ -1,4 +1,4 @@
-import { PrismaClient, PromptTemplate, AdminUser } from '@prisma/client';
+import { PrismaClient, PromptTemplate } from '@prisma/client';
 import { createError } from '@/middleware/error.middleware';
 import { logger } from '@/utils/logger';
 import {
@@ -10,11 +10,20 @@ import {
 
 const prisma = new PrismaClient();
 
+// 定义包含 creator 信息的 PromptTemplate 类型
+type PromptTemplateWithCreator = PromptTemplate & {
+  creator?: {
+    id: number;
+    username: string;
+    fullName: string | null;
+  } | null;
+};
+
 export class PromptTemplateService {
   /**
    * 获取提示词模板列表（分页）
    */
-  async getTemplates(query: PaginationQuery): Promise<PaginatedResponse<PromptTemplate & { creator?: AdminUser }>> {
+  async getTemplates(query: PaginationQuery): Promise<PaginatedResponse<PromptTemplateWithCreator>> {
     const {
       page = 1,
       limit = 10,
@@ -90,7 +99,7 @@ export class PromptTemplateService {
   /**
    * 根据ID获取提示词模板详情
    */
-  async getTemplateById(id: number): Promise<PromptTemplate & { creator?: AdminUser }> {
+  async getTemplateById(id: number): Promise<PromptTemplateWithCreator> {
     try {
       const template = await prisma.promptTemplate.findUnique({
         where: { id },
@@ -123,7 +132,7 @@ export class PromptTemplateService {
   /**
    * 创建提示词模板
    */
-  async createTemplate(data: PromptTemplateCreateRequest, createdBy: number): Promise<PromptTemplate> {
+  async createTemplate(data: PromptTemplateCreateRequest, createdBy: number): Promise<PromptTemplateWithCreator> {
     try {
       // 检查模板名称是否已存在（同一版本）
       const existingTemplate = await prisma.promptTemplate.findFirst({
