@@ -95,13 +95,14 @@ docker-compose down
    NODE_ENV=production
    PORT=3001
    JWT_SECRET=your-super-secret-jwt-key-change-this
-   DATABASE_URL=sqlite:/app/data/database.sqlite
+   DATABASE_URL=postgresql://postgres:password@host:5432/database
    CORS_ORIGIN=https://your-domain.com
    ```
 
-3. **持久化存储**：
-   - **挂载点**: `/app/data`
-   - **用于**: SQLite数据库文件存储
+3. **数据库配置**：
+   - 支持PostgreSQL数据库
+   - 自动运行数据库迁移
+   - 在Coolify中添加PostgreSQL服务
 
 4. **域名配置**：
    - 设置您的域名，如：`admin.yourdomain.com`

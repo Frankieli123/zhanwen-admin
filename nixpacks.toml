@@ -1,5 +1,4 @@
-[providers]
-node = "18"
+providers = ["node"]
 
 [variables]
 NODE_ENV = "production"
@@ -16,8 +15,7 @@ cmds = [
 
 [phases.build]
 cmds = [
-  "cd backend && npm run build",
-  "mkdir -p /app/data"
+  "cd backend && npm run build"
 ]
 
 [start]

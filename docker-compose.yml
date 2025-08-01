@@ -1,6 +1,25 @@
 version: '3.8'
 
 services:
+  # PostgreSQL数据库
+  database:
+    image: postgres:15-alpine
+    container_name: zhanwen-admin-db
+    environment:
+      - POSTGRES_DB=divination_admin
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-your-db-password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - zhanwen-network
+
   # 后端API服务
   backend:
     build:
@@ -14,11 +33,12 @@ services:
       - PORT=3001
       - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-change-this}
       - JWT_EXPIRES_IN=7d
-      - DATABASE_URL=sqlite:/app/data/database.sqlite
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-your-db-password}@database:5432/divination_admin
       - CORS_ORIGIN=http://localhost:3000
       - LOG_LEVEL=info
-    volumes:
-      - backend_data:/app/data
+    depends_on:
+      database:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3001/api/health"]
       interval: 30s
@@ -55,8 +75,8 @@ services:
       - zhanwen-network
 
 volumes:
-  # 后端数据持久化
-  backend_data:
+  # PostgreSQL数据持久化
+  postgres_data:
     driver: local
 
 networks:
