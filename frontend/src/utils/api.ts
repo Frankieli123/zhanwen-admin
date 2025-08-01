@@ -1,8 +1,8 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 
-// API基础配置
+// API基础配置 - 生产环境使用相对路径，开发环境使用完整URL
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (
-  import.meta.env.MODE === 'production' ? '' : 'http://localhost:3001'
+  import.meta.env.MODE === 'production' ? '' : 'http://localhost:30001'
 );
 
 // 创建axios实例

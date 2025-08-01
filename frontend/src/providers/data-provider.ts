@@ -1,7 +1,9 @@
 import { DataProvider } from "@refinedev/core";
 import axios, { AxiosInstance } from "axios";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001/api";
+const API_URL = import.meta.env.VITE_API_URL || (
+  import.meta.env.MODE === 'production' ? '/api' : 'http://localhost:30001/api'
+);
 
 // 创建axios实例
 const axiosInstance: AxiosInstance = axios.create({
