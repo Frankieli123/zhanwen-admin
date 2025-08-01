@@ -227,12 +227,25 @@ function App() {
                                     password: "admin123456",
                                     remember: true,
                                   }}
-                                  onFinish={(values) => {
-                                    authProvider.login({
-                                      username: values.username,
-                                      password: values.password,
-                                      remember: values.remember,
-                                    });
+                                  onFinish={async (values) => {
+                                    try {
+                                      const result = await authProvider.login({
+                                        username: values.username,
+                                        password: values.password,
+                                        remember: values.remember,
+                                      });
+
+                                      console.log('登录结果处理:', result);
+
+                                      if (result.success && result.redirectTo) {
+                                        window.location.href = result.redirectTo;
+                                      } else if (result.error) {
+                                        console.error('登录失败:', result.error.message);
+                                        // 这里可以显示错误消息
+                                      }
+                                    } catch (error) {
+                                      console.error('登录处理异常:', error);
+                                    }
                                   }}
                                 >
                                   <Form.Item
