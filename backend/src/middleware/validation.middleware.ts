@@ -199,10 +199,11 @@ export const paginationValidation = {
 export const authValidation = {
   login: {
     body: Joi.object({
-      username: commonValidations.username,
+      username: commonValidations.username.optional(),
+      email: commonValidations.email.optional(),
       password: commonValidations.password,
       remember: Joi.boolean().default(false),
-    }),
+    }).or('username', 'email'), // 至少需要用户名或邮箱其中一个
   },
   register: {
     body: Joi.object({

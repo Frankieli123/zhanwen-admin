@@ -47,11 +47,19 @@ router.post(
   validate(authValidation.login),
   sensitiveAuditLog('login', '用户登录'),
   asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const { username, password, remember } = req.body;
+    const { username, email, password, remember } = req.body;
 
-    // 查找用户
-    const user = await prisma.adminUser.findUnique({
-      where: { username },
+    // 支持用户名或邮箱登录
+    const loginField = username || email;
+
+    // 查找用户 - 同时支持用户名和邮箱
+    const user = await prisma.adminUser.findFirst({
+      where: {
+        OR: [
+          { username: loginField },
+          { email: loginField },
+        ],
+      },
     });
 
     if (!user) {

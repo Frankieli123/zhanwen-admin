@@ -40,9 +40,6 @@ import { HexagramShow } from "./pages/hexagrams/show";
 // 数据分析页面
 import { Analytics } from "./pages/analytics";
 
-// 登录页面
-import { LoginPage } from "./pages/login";
-
 // 图标
 import {
   DashboardOutlined,
@@ -204,7 +201,18 @@ function App() {
                   >
                     <Route
                       path="/login"
-                      element={<LoginPage />}
+                      element={
+                        <AuthPage
+                          type="login"
+                          title="占卜应用管理后台"
+                          formProps={{
+                            initialValues: {
+                              email: "admin@divination.com",
+                              password: "admin123456",
+                            },
+                          }}
+                        />
+                      }
                     />
                   </Route>
 
