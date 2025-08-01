@@ -12,11 +12,12 @@ export const authProvider: AuthProvider = {
           success: false,
           error: {
             name: "LoginError",
-            message: "请输入邮箱或用户名",
+            message: "请输入用户名",
           },
         };
       }
 
+      console.log('登录尝试:', { loginField, password: '***' });
       const response = await authAPI.login({
         username: loginField,
         password,

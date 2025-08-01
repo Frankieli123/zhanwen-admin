@@ -20,6 +20,9 @@ dotenv.config();
 const app = express();
 const PORT = process.env['PORT'] || 3001;
 
+// 信任代理设置（用于处理反向代理的头部信息）
+app.set('trust proxy', true);
+
 // Swagger配置
 const swaggerOptions = {
   definition: {

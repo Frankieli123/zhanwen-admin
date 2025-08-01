@@ -213,55 +213,24 @@ function App() {
                               password: "admin123456",
                             },
                           }}
-                          renderContent={(content, title) => {
-                            // 自定义渲染，替换邮箱字段为用户名字段
-                            return (
-                              <div style={{ maxWidth: 400, margin: '0 auto', padding: 24 }}>
-                                {title}
-                                <Form
-                                  layout="vertical"
-                                  size="large"
-                                  initialValues={{
-                                    username: "admin",
-                                    password: "admin123456",
-                                    remember: true,
-                                  }}
-                                  onFinish={(values) => {
-                                    authProvider.login({
-                                      username: values.username,
-                                      password: values.password,
-                                      remember: values.remember,
-                                    });
-                                  }}
-                                >
-                                  <Form.Item
-                                    name="username"
-                                    label="用户名"
-                                    rules={[{ required: true, message: "请输入用户名" }]}
-                                  >
-                                    <Input placeholder="请输入用户名" />
-                                  </Form.Item>
-
-                                  <Form.Item
-                                    name="password"
-                                    label="密码"
-                                    rules={[{ required: true, message: "请输入密码" }]}
-                                  >
-                                    <Input.Password placeholder="请输入密码" />
-                                  </Form.Item>
-
-                                  <Form.Item name="remember" valuePropName="checked">
-                                    <Checkbox>记住我</Checkbox>
-                                  </Form.Item>
-
-                                  <Form.Item>
-                                    <Button type="primary" htmlType="submit" style={{ width: '100%' }}>
-                                      登录
-                                    </Button>
-                                  </Form.Item>
-                                </Form>
-                              </div>
-                            );
+                          contentProps={{
+                            style: {
+                              maxWidth: 400,
+                              margin: '0 auto',
+                            },
+                          }}
+                          formProps={{
+                            initialValues: {
+                              email: "admin",
+                              password: "admin123456",
+                              remember: true,
+                            },
+                            onValuesChange: (changedValues, allValues) => {
+                              // 将email字段的值同时设置为username，这样后端可以接收到
+                              if (changedValues.email !== undefined) {
+                                allValues.username = changedValues.email;
+                              }
+                            },
                           }}
                         />
                       }
