@@ -20,12 +20,20 @@ export const authProvider: AuthProvider = {
       console.log('登录尝试:', { loginField, password: '***' });
 
       try {
-        const response = await authAPI.login({
-          username: loginField,
-          password,
-          remember
+        // 直接使用fetch调用API，避免axios的复杂性
+        const fetchResponse = await fetch('/auth/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            username: loginField,
+            password,
+            remember
+          })
         });
 
+        const response = await fetchResponse.json();
         console.log('登录响应:', response);
 
         if (response.success && response.data) {
@@ -51,11 +59,21 @@ export const authProvider: AuthProvider = {
         };
       } catch (error: any) {
         console.error('登录API调用异常:', error);
+        return {
+          success: false,
+          error: {
+            name: "LoginError",
+            message: error.response?.data?.message || "登录失败，请检查网络连接",
+          },
+        };
+      }
+    } catch (outerError: any) {
+      console.error('登录外层异常:', outerError);
       return {
         success: false,
         error: {
           name: "LoginError",
-          message: error.response?.data?.message || "登录失败，请检查网络连接",
+          message: "登录失败，请检查网络连接",
         },
       };
     }
