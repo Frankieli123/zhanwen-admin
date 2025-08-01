@@ -23,7 +23,9 @@ export const authProvider: AuthProvider = {
         password,
         remember
       });
-      
+
+      console.log('登录响应:', response);
+
       if (response.success && response.data) {
         const { token, user } = response.data;
         
