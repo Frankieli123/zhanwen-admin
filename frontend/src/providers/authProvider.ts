@@ -18,35 +18,39 @@ export const authProvider: AuthProvider = {
       }
 
       console.log('登录尝试:', { loginField, password: '***' });
-      const response = await authAPI.login({
-        username: loginField,
-        password,
-        remember
-      });
 
-      console.log('登录响应:', response);
+      try {
+        const response = await authAPI.login({
+          username: loginField,
+          password,
+          remember
+        });
 
-      if (response.success && response.data) {
+        console.log('登录响应:', response);
+
+        if (response.success && response.data) {
         const { token, user } = response.data;
         
         // 存储token和用户信息
         localStorage.setItem("auth_token", token);
         localStorage.setItem("user_info", JSON.stringify(user));
         
+          return {
+            success: true,
+            redirectTo: "/",
+          };
+        }
+
+        console.log('登录失败 - 响应格式不正确:', response);
         return {
-          success: true,
-          redirectTo: "/",
+          success: false,
+          error: {
+            name: "LoginError",
+            message: response.message || "登录失败",
+          },
         };
-      }
-      
-      return {
-        success: false,
-        error: {
-          name: "LoginError",
-          message: response.message || "登录失败",
-        },
-      };
-    } catch (error: any) {
+      } catch (error: any) {
+        console.error('登录API调用异常:', error);
       return {
         success: false,
         error: {
