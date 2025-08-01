@@ -83,42 +83,44 @@ docker-compose down
 
 ## 🐳 Coolify部署
 
-### 1. 创建新项目
+### 方式一：Node.js应用部署（推荐）
 
-在Coolify中创建新项目：
+1. **创建新应用**：
+   - **Repository**: `https://github.com/Frankieli123/zhanwen-admin`
+   - **Branch**: `main`
+   - **Application Type**: `Node.js`
 
-- **Repository**: `https://github.com/Frankieli123/zhanwen-admin`
-- **Branch**: `main`
-- **Project Type**: `Docker Compose`
+2. **环境变量配置**：
+   ```env
+   NODE_ENV=production
+   PORT=3001
+   JWT_SECRET=your-super-secret-jwt-key-change-this
+   DATABASE_URL=sqlite:/app/data/database.sqlite
+   CORS_ORIGIN=https://your-domain.com
+   ```
 
-### 2. 环境变量配置
+3. **持久化存储**：
+   - **挂载点**: `/app/data`
+   - **用于**: SQLite数据库文件存储
 
-**后端环境变量**:
-```env
-NODE_ENV=production
-PORT=3001
-JWT_SECRET=your-super-secret-jwt-key
-DATABASE_URL=sqlite:/app/data/database.sqlite
-CORS_ORIGIN=https://your-frontend-domain.com
-```
+4. **域名配置**：
+   - 设置您的域名，如：`admin.yourdomain.com`
 
-**前端环境变量**:
-```env
-VITE_API_URL=https://your-backend-domain.com
-VITE_API_BASE_URL=https://your-backend-domain.com/api
-NODE_ENV=production
-```
+### 方式二：Docker Compose部署
 
-### 3. 域名配置
+1. **创建新项目**：
+   - **Project Type**: `Docker Compose`
+   - **Repository**: `https://github.com/Frankieli123/zhanwen-admin`
 
-- **后端**: `api.yourdomain.com`
-- **前端**: `admin.yourdomain.com`
+2. **环境变量配置**：
+   ```env
+   JWT_SECRET=your-super-secret-jwt-key-change-this
+   CORS_ORIGIN=https://your-domain.com
+   ```
 
-### 4. 持久化存储
-
-为后端服务配置持久化存储：
-- **挂载点**: `/app/data`
-- **用于**: SQLite数据库文件存储
+3. **域名配置**：
+   - **后端**: `api.yourdomain.com` (端口3001)
+   - **前端**: `admin.yourdomain.com` (端口3000)
 
 ## 📋 主要功能
 
