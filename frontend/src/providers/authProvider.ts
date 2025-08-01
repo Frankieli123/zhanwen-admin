@@ -37,26 +37,31 @@ export const authProvider: AuthProvider = {
         console.log('登录响应:', response);
 
         if (response.success && response.data) {
-        const { token, user } = response.data;
-        
-        // 存储token和用户信息
-        localStorage.setItem("auth_token", token);
-        localStorage.setItem("user_info", JSON.stringify(user));
-        
-          return {
+          const { token, user } = response.data;
+
+          // 存储token和用户信息
+          localStorage.setItem("auth_token", token);
+          localStorage.setItem("user_info", JSON.stringify(user));
+
+          const authResult = {
             success: true,
             redirectTo: "/",
           };
+
+          console.log('authProvider返回值:', authResult);
+          return authResult;
         }
 
         console.log('登录失败 - 响应格式不正确:', response);
-        return {
+        const failResult = {
           success: false,
           error: {
             name: "LoginError",
             message: response.message || "登录失败",
           },
         };
+        console.log('authProvider失败返回值:', failResult);
+        return failResult;
       } catch (error: any) {
         console.error('登录API调用异常:', error);
         return {
