@@ -2,10 +2,26 @@ import { AuthProvider } from "@refinedev/core";
 import { authAPI } from "../utils/api";
 
 export const authProvider: AuthProvider = {
-  // 登录
-  login: async ({ username, password, remember }) => {
+  // 登录 - 按照Refine标准支持email和username
+  login: async ({ username, email, password, remember }) => {
     try {
-      const response = await authAPI.login({ username, password, remember });
+      // 支持email或username登录，优先使用email（Refine AuthPage默认使用email）
+      const loginField = email || username;
+      if (!loginField) {
+        return {
+          success: false,
+          error: {
+            name: "LoginError",
+            message: "请输入邮箱或用户名",
+          },
+        };
+      }
+
+      const response = await authAPI.login({
+        username: loginField,
+        password,
+        remember
+      });
       
       if (response.success && response.data) {
         const { token, user } = response.data;

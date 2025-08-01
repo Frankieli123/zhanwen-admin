@@ -1,4 +1,4 @@
-import { Refine } from "@refinedev/core";
+import { Refine, Authenticated } from "@refinedev/core";
 import {
   ErrorComponent,
   ThemedLayoutV2,
@@ -12,6 +12,7 @@ import routerBindings, {
   DocumentTitleHandler,
   NavigateToResource,
   UnsavedChangesNotifier,
+  CatchAllNavigate,
 } from "@refinedev/react-router-v6";
 import { App as AntdApp, ConfigProvider } from "antd";
 import { BrowserRouter, Outlet, Route, Routes } from "react-router-dom";
@@ -132,17 +133,22 @@ function App() {
                 <Routes>
                   <Route
                     element={
-                      <ThemedLayoutV2
-                        Title={({ collapsed }) => (
-                          <ThemedTitleV2
-                            collapsed={collapsed}
-                            text="占卜管理后台"
-                          />
-                        )}
-                        Sider={(props) => <ThemedSiderV2 {...props} fixed />}
+                      <Authenticated
+                        key="authenticated-inner"
+                        fallback={<CatchAllNavigate to="/login" />}
                       >
-                        <Outlet />
-                      </ThemedLayoutV2>
+                        <ThemedLayoutV2
+                          Title={({ collapsed }) => (
+                            <ThemedTitleV2
+                              collapsed={collapsed}
+                              text="占卜管理后台"
+                            />
+                          )}
+                          Sider={(props) => <ThemedSiderV2 {...props} fixed />}
+                        >
+                          <Outlet />
+                        </ThemedLayoutV2>
+                      </Authenticated>
                     }
                   >
                     <Route index element={<Dashboard />} />
@@ -187,16 +193,12 @@ function App() {
 
                   <Route
                     element={
-                      <ThemedLayoutV2
-                        Title={({ collapsed }) => (
-                          <ThemedTitleV2
-                            collapsed={collapsed}
-                            text="占卜管理后台"
-                          />
-                        )}
+                      <Authenticated
+                        key="authenticated-outer"
+                        fallback={<Outlet />}
                       >
-                        <Outlet />
-                      </ThemedLayoutV2>
+                        <NavigateToResource />
+                      </Authenticated>
                     }
                   >
                     <Route
@@ -207,7 +209,7 @@ function App() {
                           title="占卜应用管理后台"
                           formProps={{
                             initialValues: {
-                              email: "admin@divination.com",
+                              email: "admin",
                               password: "admin123456",
                             },
                           }}
@@ -215,11 +217,6 @@ function App() {
                       }
                     />
                   </Route>
-
-                  <Route
-                    path="/"
-                    element={<NavigateToResource resource="dashboard" />}
-                  />
                 </Routes>
 
                 <UnsavedChangesNotifier />
