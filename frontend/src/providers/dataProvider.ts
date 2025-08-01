@@ -1,11 +1,13 @@
 import { DataProvider } from "@refinedev/core";
-import { aiModelsAPI, promptsAPI, configsAPI } from "../utils/api";
+import { aiModelsAPI, promptsAPI, configsAPI, hexagramsAPI, analyticsAPI } from "../utils/api";
 
 // 资源映射
 const resourceMap: Record<string, any> = {
   "ai-models": aiModelsAPI,
   "prompts": promptsAPI,
   "configs": configsAPI,
+  "hexagrams": hexagramsAPI,
+  "analytics": analyticsAPI,
 };
 
 export const dataProvider: DataProvider = {
@@ -50,6 +52,8 @@ export const dataProvider: DataProvider = {
         response = await api.getTemplates(params);
       } else if (resource === "configs") {
         response = await api.getConfigs(params);
+      } else if (resource === "hexagrams") {
+        response = await api.getHexagrams(params);
       } else {
         throw new Error(`不支持的资源类型: ${resource}`);
       }
@@ -78,6 +82,8 @@ export const dataProvider: DataProvider = {
         response = await api.getTemplate(Number(id));
       } else if (resource === "configs") {
         response = await api.getConfig(Number(id));
+      } else if (resource === "hexagrams") {
+        response = await api.getHexagramById(Number(id));
       } else {
         throw new Error(`不支持的资源类型: ${resource}`);
       }

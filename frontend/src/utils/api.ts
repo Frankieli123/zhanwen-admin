@@ -222,4 +222,40 @@ export const configsAPI = {
   getCategories: () => api.get('/api/configs/categories'),
 };
 
+// 卦象数据API
+export const hexagramsAPI = {
+  // 获取卦象数据列表
+  getHexagrams: (params?: any) => api.get('/api/hexagrams', { params }),
+
+  // 根据ID获取卦象数据
+  getHexagramById: (id: number) => api.get(`/api/hexagrams/${id}`),
+
+  // 创建卦象数据
+  createHexagram: (data: any) => api.post('/api/hexagrams', data),
+
+  // 更新卦象数据
+  updateHexagram: (id: number, data: any) => api.put(`/api/hexagrams/${id}`, data),
+
+  // 删除卦象数据
+  deleteHexagram: (id: number) => api.delete(`/api/hexagrams/${id}`),
+
+  // 批量删除卦象数据
+  batchDeleteHexagrams: (ids: number[]) => api.delete('/api/hexagrams', { data: { ids } }),
+};
+
+// 数据分析API
+export const analyticsAPI = {
+  // 获取分析概览
+  getOverview: () => api.get('/api/analytics/overview'),
+
+  // 获取使用统计
+  getUsageStatistics: (params?: any) => api.get('/api/analytics/usage', { params }),
+
+  // 获取模型性能统计
+  getModelPerformance: (params?: any) => api.get('/api/analytics/models', { params }),
+
+  // 获取卦象统计
+  getHexagramStatistics: (params?: any) => api.get('/api/analytics/hexagrams', { params }),
+};
+
 export default apiClient;

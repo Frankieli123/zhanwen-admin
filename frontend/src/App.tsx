@@ -33,6 +33,13 @@ import { PromptList, PromptCreate, PromptEdit, PromptShow } from "./pages/prompt
 // 配置管理页面
 import { ConfigList, ConfigCreate, ConfigEdit, ConfigShow } from "./pages/configs";
 
+// 卦象数据管理页面
+import { HexagramList } from "./pages/hexagrams/list";
+import { HexagramShow } from "./pages/hexagrams/show";
+
+// 数据分析页面
+import { Analytics } from "./pages/analytics";
+
 // 图标
 import {
   DashboardOutlined,
@@ -162,6 +169,17 @@ function App() {
                       <Route path="create" element={<ConfigCreate />} />
                       <Route path="edit/:id" element={<ConfigEdit />} />
                       <Route path="show/:id" element={<ConfigShow />} />
+                    </Route>
+
+                    {/* 卦象数据管理路由 */}
+                    <Route path="/hexagrams">
+                      <Route index element={<HexagramList />} />
+                      <Route path="show/:id" element={<HexagramShow />} />
+                    </Route>
+
+                    {/* 数据分析路由 */}
+                    <Route path="/analytics">
+                      <Route index element={<Analytics />} />
                     </Route>
 
                     <Route path="*" element={<ErrorComponent />} />

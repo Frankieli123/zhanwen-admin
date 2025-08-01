@@ -8,6 +8,7 @@ const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const prisma = new client_1.PrismaClient();
 async function main() {
     console.log('开始初始化数据库...');
+    // 1. 创建默认管理员用户
     const adminPasswordHash = await bcryptjs_1.default.hash('admin123456', 10);
     const adminUser = await prisma.adminUser.upsert({
         where: { username: 'admin' },
@@ -29,6 +30,7 @@ async function main() {
         },
     });
     console.log('✅ 创建管理员用户:', adminUser.username);
+    // 2. 创建AI服务提供商
     const providers = [
         {
             name: 'deepseek',
@@ -63,6 +65,7 @@ async function main() {
         });
         console.log('✅ 创建AI提供商:', createdProvider.displayName);
     }
+    // 3. 创建默认AI模型配置
     const deepseekProvider = await prisma.aiProvider.findUnique({
         where: { name: 'deepseek' }
     });
@@ -96,6 +99,7 @@ async function main() {
         });
         console.log('✅ 创建AI模型: DeepSeek Chat');
     }
+    // 4. 创建默认提示词模板
     const systemPrompt = await prisma.promptTemplate.upsert({
         where: {
             name_version: {
@@ -129,6 +133,7 @@ async function main() {
         },
     });
     console.log('✅ 创建提示词模板:', systemPrompt.name);
+    // 5. 创建卦象数据
     const hexagrams = [
         {
             name: '大安',
@@ -205,12 +210,15 @@ async function main() {
         });
         console.log('✅ 创建卦象数据:', created.name);
     }
+    // 6. 创建五行关系
     const elementRelations = [
+        // 相生关系
         { sourceElement: 'wood', targetElement: 'fire', relationType: 'generate', strength: 5, description: '木生火' },
         { sourceElement: 'fire', targetElement: 'earth', relationType: 'generate', strength: 5, description: '火生土' },
         { sourceElement: 'earth', targetElement: 'metal', relationType: 'generate', strength: 5, description: '土生金' },
         { sourceElement: 'metal', targetElement: 'water', relationType: 'generate', strength: 5, description: '金生水' },
         { sourceElement: 'water', targetElement: 'wood', relationType: 'generate', strength: 5, description: '水生木' },
+        // 相克关系
         { sourceElement: 'wood', targetElement: 'earth', relationType: 'overcome', strength: 4, description: '木克土' },
         { sourceElement: 'earth', targetElement: 'water', relationType: 'overcome', strength: 4, description: '土克水' },
         { sourceElement: 'water', targetElement: 'fire', relationType: 'overcome', strength: 4, description: '水克火' },
@@ -230,6 +238,7 @@ async function main() {
         });
     }
     console.log('✅ 创建五行关系数据');
+    // 7. 创建默认应用配置
     const defaultConfigs = [
         {
             platform: 'web',
@@ -288,4 +297,3 @@ main()
     .finally(async () => {
     await prisma.$disconnect();
 });
-//# sourceMappingURL=seed.js.map

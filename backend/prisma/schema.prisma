@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,89 +7,79 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// AI服务提供商表
 model AiProvider {
-  id                Int       @id @default(autoincrement())
-  name              String    @unique @db.VarChar(100)
-  displayName       String    @map("display_name") @db.VarChar(100)
-  baseUrl           String    @map("base_url") @db.Text
-  authType          String    @default("api_key") @map("auth_type") @db.VarChar(20)
-  supportedModels   String[]  @default([]) @map("supported_models")
-  rateLimitRpm      Int       @default(60) @map("rate_limit_rpm")
-  rateLimitTpm      Int       @default(60000) @map("rate_limit_tpm")
-  isActive          Boolean   @default(true) @map("is_active")
-  metadata          Json      @default("{}")
-  createdAt         DateTime  @default(now()) @map("created_at")
-  updatedAt         DateTime  @updatedAt @map("updated_at")
-
-  // 关联关系
-  aiModels          AiModel[]
+  id              Int       @id @default(autoincrement())
+  name            String    @unique @db.VarChar(100)
+  displayName     String    @map("display_name") @db.VarChar(100)
+  baseUrl         String    @map("base_url")
+  authType        String    @default("api_key") @map("auth_type") @db.VarChar(20)
+  supportedModels String[]  @default([]) @map("supported_models")
+  rateLimitRpm    Int       @default(60) @map("rate_limit_rpm")
+  rateLimitTpm    Int       @default(60000) @map("rate_limit_tpm")
+  isActive        Boolean   @default(true) @map("is_active")
+  metadata        Json      @default("{}")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  aiModels        AiModel[]
 
   @@map("ai_providers")
 }
 
-// AI模型配置表
 model AiModel {
-  id                Int         @id @default(autoincrement())
-  providerId        Int         @map("provider_id")
-  name              String      @db.VarChar(100)
-  displayName       String      @map("display_name") @db.VarChar(100)
-  apiKeyEncrypted   String?     @map("api_key_encrypted") @db.Text
-  modelType         String      @default("chat") @map("model_type") @db.VarChar(50)
-  parameters        Json        @default("{\"temperature\": 0.7, \"max_tokens\": 3000, \"top_p\": 1.0, \"frequency_penalty\": 0.0, \"presence_penalty\": 0.0}")
-  role              String      @default("secondary") @db.VarChar(20) // primary/secondary/disabled
-  priority          Int         @default(100)
-  costPer1kTokens   Decimal     @default(0) @map("cost_per_1k_tokens") @db.Decimal(10, 6)
-  contextWindow     Int         @default(4000) @map("context_window")
-  isActive          Boolean     @default(true) @map("is_active")
-  metadata          Json        @default("{}")
-  createdAt         DateTime    @default(now()) @map("created_at")
-  updatedAt         DateTime    @updatedAt @map("updated_at")
-
-  // 关联关系
-  provider          AiProvider  @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  apiCallLogs       ApiCallLog[]
+  id              Int          @id @default(autoincrement())
+  providerId      Int          @map("provider_id")
+  name            String       @db.VarChar(100)
+  displayName     String       @map("display_name") @db.VarChar(100)
+  apiKeyEncrypted String?      @map("api_key_encrypted")
+  modelType       String       @default("chat") @map("model_type") @db.VarChar(50)
+  parameters      Json         @default("{\"top_p\": 1.0, \"max_tokens\": 3000, \"temperature\": 0.7, \"presence_penalty\": 0.0, \"frequency_penalty\": 0.0}")
+  role            String       @default("secondary") @db.VarChar(20)
+  priority        Int          @default(100)
+  costPer1kTokens Decimal      @default(0) @map("cost_per_1k_tokens") @db.Decimal(10, 6)
+  contextWindow   Int          @default(4000) @map("context_window")
+  isActive        Boolean      @default(true) @map("is_active")
+  metadata        Json         @default("{}")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+  provider        AiProvider   @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  apiCallLogs     ApiCallLog[]
 
   @@unique([providerId, name])
   @@map("ai_models")
 }
 
-// 提示词模板表
 model PromptTemplate {
-  id                    Int      @id @default(autoincrement())
-  name                  String   @db.VarChar(100)
-  type                  String   @db.VarChar(50) // system/user/format
-  category              String   @default("general") @db.VarChar(50)
-  systemPrompt          String?  @map("system_prompt") @db.Text
-  userPromptTemplate    String?  @map("user_prompt_template") @db.Text
-  formatInstructions    String?  @map("format_instructions") @db.Text
-  variables             Json     @default("[]")
-  version               Int      @default(1)
-  status                String   @default("draft") @db.VarChar(20) // draft/active/deprecated
-  description           String?  @db.Text
-  tags                  String[] @default([])
-  usageCount            Int      @default(0) @map("usage_count")
-  effectivenessScore    Decimal? @map("effectiveness_score") @db.Decimal(3, 2)
-  createdBy             Int?     @map("created_by")
-  createdAt             DateTime @default(now()) @map("created_at")
-  updatedAt             DateTime @updatedAt @map("updated_at")
-
-  // 关联关系
-  creator               AdminUser? @relation(fields: [createdBy], references: [id])
+  id                 Int        @id @default(autoincrement())
+  name               String     @db.VarChar(100)
+  type               String     @db.VarChar(50)
+  category           String     @default("general") @db.VarChar(50)
+  systemPrompt       String?    @map("system_prompt")
+  userPromptTemplate String?    @map("user_prompt_template")
+  formatInstructions String?    @map("format_instructions")
+  variables          Json       @default("[]")
+  version            Int        @default(1)
+  status             String     @default("draft") @db.VarChar(20)
+  description        String?
+  tags               String[]   @default([])
+  usageCount         Int        @default(0) @map("usage_count")
+  effectivenessScore Decimal?   @map("effectiveness_score") @db.Decimal(3, 2)
+  createdBy          Int?       @map("created_by")
+  createdAt          DateTime   @default(now()) @map("created_at")
+  updatedAt          DateTime   @updatedAt @map("updated_at")
+  creator            AdminUser? @relation(fields: [createdBy], references: [id])
 
   @@unique([name, version])
   @@map("prompt_templates")
 }
 
-// 应用配置表
 model AppConfig {
   id              Int      @id @default(autoincrement())
-  platform        String   @db.VarChar(20) // web/ios/android/wechat
+  platform        String   @db.VarChar(20)
   configKey       String   @map("config_key") @db.VarChar(100)
   configValue     Json     @map("config_value")
   dataType        String   @default("json") @map("data_type") @db.VarChar(20)
   category        String   @default("general") @db.VarChar(50)
-  description     String?  @db.Text
+  description     String?
   version         Int      @default(1)
   isActive        Boolean  @default(true) @map("is_active")
   isSensitive     Boolean  @default(false) @map("is_sensitive")
@@ -104,36 +91,34 @@ model AppConfig {
   @@map("app_configs")
 }
 
-// 卦象数据表
 model HexagramData {
-  id                  Int      @id @default(autoincrement())
-  name                String   @unique @db.VarChar(50)
-  element             String   @db.VarChar(20)
-  description         String?  @db.Text
-  interpretation      String?  @db.Text
-  favorableActions    String[] @default([]) @map("favorable_actions")
-  unfavorableActions  String[] @default([]) @map("unfavorable_actions")
-  timeInfo            Json     @default("{}") @map("time_info")
-  directionInfo       Json     @default("{}") @map("direction_info")
-  resolutionMethods   String[] @default([]) @map("resolution_methods")
-  metadata            Json     @default("{}")
-  version             Int      @default(1)
-  isActive            Boolean  @default(true) @map("is_active")
-  createdAt           DateTime @default(now()) @map("created_at")
-  updatedAt           DateTime @updatedAt @map("updated_at")
+  id                 Int      @id @default(autoincrement())
+  name               String   @unique @db.VarChar(50)
+  element            String   @db.VarChar(20)
+  description        String?
+  interpretation     String?
+  favorableActions   String[] @default([]) @map("favorable_actions")
+  unfavorableActions String[] @default([]) @map("unfavorable_actions")
+  timeInfo           Json     @default("{}") @map("time_info")
+  directionInfo      Json     @default("{}") @map("direction_info")
+  resolutionMethods  String[] @default([]) @map("resolution_methods")
+  metadata           Json     @default("{}")
+  version            Int      @default(1)
+  isActive           Boolean  @default(true) @map("is_active")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
 
   @@map("hexagram_data")
 }
 
-// 五行关系表
 model ElementRelation {
   id                Int      @id @default(autoincrement())
   sourceElement     String   @map("source_element") @db.VarChar(20)
   targetElement     String   @map("target_element") @db.VarChar(20)
-  relationType      String   @map("relation_type") @db.VarChar(20) // generate/overcome/neutral
+  relationType      String   @map("relation_type") @db.VarChar(20)
   strength          Int      @default(1)
-  description       String?  @db.Text
-  effectDescription String?  @map("effect_description") @db.Text
+  description       String?
+  effectDescription String?  @map("effect_description")
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
@@ -141,15 +126,14 @@ model ElementRelation {
   @@map("element_relations")
 }
 
-// 多语言内容表
 model I18nContent {
   id           Int      @id @default(autoincrement())
   contentKey   String   @map("content_key") @db.VarChar(200)
   languageCode String   @map("language_code") @db.VarChar(10)
-  contentValue String   @map("content_value") @db.Text
+  contentValue String   @map("content_value")
   contentType  String   @default("text") @map("content_type") @db.VarChar(50)
   category     String   @default("general") @db.VarChar(50)
-  description  String?  @db.Text
+  description  String?
   isActive     Boolean  @default(true) @map("is_active")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
@@ -158,7 +142,6 @@ model I18nContent {
   @@map("i18n_contents")
 }
 
-// API调用日志表
 model ApiCallLog {
   id             BigInt   @id @default(autoincrement())
   modelId        Int?     @map("model_id")
@@ -169,18 +152,15 @@ model ApiCallLog {
   tokensUsed     Int?     @map("tokens_used")
   cost           Decimal? @db.Decimal(10, 6)
   responseTimeMs Int?     @map("response_time_ms")
-  status         String?  @db.VarChar(20) // success/error/timeout
-  errorMessage   String?  @map("error_message") @db.Text
+  status         String?  @db.VarChar(20)
+  errorMessage   String?  @map("error_message")
   metadata       Json     @default("{}")
   createdAt      DateTime @default(now()) @map("created_at")
-
-  // 关联关系
   model          AiModel? @relation(fields: [modelId], references: [id])
 
   @@map("api_call_logs")
 }
 
-// 使用统计表
 model UsageStatistic {
   id          BigInt   @id @default(autoincrement())
   date        DateTime @db.Date
@@ -194,28 +174,24 @@ model UsageStatistic {
   @@map("usage_statistics")
 }
 
-// 管理员用户表
 model AdminUser {
-  id            Int      @id @default(autoincrement())
-  username      String   @unique @db.VarChar(50)
-  email         String   @unique @db.VarChar(100)
-  passwordHash  String   @map("password_hash") @db.VarChar(255)
-  fullName      String?  @map("full_name") @db.VarChar(100)
-  role          String   @default("admin") @db.VarChar(50)
-  permissions   Json     @default("[]")
-  isActive      Boolean  @default(true) @map("is_active")
-  lastLoginAt   DateTime? @map("last_login_at")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-
-  // 关联关系
-  promptTemplates PromptTemplate[]
+  id              Int              @id @default(autoincrement())
+  username        String           @unique @db.VarChar(50)
+  email           String           @unique @db.VarChar(100)
+  passwordHash    String           @map("password_hash") @db.VarChar(255)
+  fullName        String?          @map("full_name") @db.VarChar(100)
+  role            String           @default("admin") @db.VarChar(50)
+  permissions     Json             @default("[]")
+  isActive        Boolean          @default(true) @map("is_active")
+  lastLoginAt     DateTime?        @map("last_login_at")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
   operationLogs   OperationLog[]
+  promptTemplates PromptTemplate[]
 
   @@map("admin_users")
 }
 
-// 操作日志表
 model OperationLog {
   id           BigInt     @id @default(autoincrement())
   userId       Int?       @map("user_id")
@@ -225,10 +201,8 @@ model OperationLog {
   oldValues    Json?      @map("old_values")
   newValues    Json?      @map("new_values")
   ipAddress    String?    @map("ip_address") @db.Inet
-  userAgent    String?    @map("user_agent") @db.Text
+  userAgent    String?    @map("user_agent")
   createdAt    DateTime   @default(now()) @map("created_at")
-
-  // 关联关系
   user         AdminUser? @relation(fields: [userId], references: [id])
 
   @@map("operation_logs")
