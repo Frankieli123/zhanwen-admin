@@ -10,7 +10,15 @@ export PORT=${PORT:-3001}
 # 进入后端目录
 cd backend
 
-# 检查是否已构建
+# 检查前端是否已构建
+if [ ! -d "../frontend/dist" ]; then
+    echo "🔨 构建前端应用..."
+    cd ../frontend
+    npm run build
+    cd ../backend
+fi
+
+# 检查后端是否已构建
 if [ ! -d "dist" ]; then
     echo "🔨 构建后端应用..."
     npm run build

@@ -7,6 +7,7 @@ import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import swaggerJsdoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
+import path from 'path';
 
 import { errorHandler, notFoundHandler } from '@/middleware/error.middleware';
 import { logger } from '@/utils/logger';
@@ -84,6 +85,8 @@ app.use('/api', limiter);
 // API文档
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
+
+
 // 健康检查
 app.get('/health', (_req, res) => {
   res.json({
@@ -97,6 +100,29 @@ app.get('/health', (_req, res) => {
 // 路由
 app.use('/auth', authRoutes);
 app.use('/api', apiRoutes);
+
+// 静态文件服务 - 服务前端构建文件
+const frontendDistPath = path.join(__dirname, '../../frontend/dist');
+app.use(express.static(frontendDistPath));
+
+// SPA 路由回退 - 所有非 API 路由都返回 index.html
+app.get('*', (req, res, next) => {
+  // 跳过 API 路由和静态资源
+  if (req.path.startsWith('/api') ||
+      req.path.startsWith('/auth') ||
+      req.path.startsWith('/health') ||
+      req.path.startsWith('/api-docs') ||
+      req.path.includes('.')) {
+    return next();
+  }
+
+  // 返回前端应用的 index.html
+  res.sendFile(path.join(frontendDistPath, 'index.html'), (err) => {
+    if (err) {
+      next();
+    }
+  });
+});
 
 // 错误处理中间件
 app.use(notFoundHandler);
