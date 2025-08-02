@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   List,
   useTable,
@@ -7,13 +7,16 @@ import {
   DeleteButton,
   CreateButton,
 } from "@refinedev/antd";
-import { Table, Space, Tag, Button, Tooltip } from "antd";
+import { Table, Space, Tag, Button, Tooltip, message } from "antd";
 import { ApiOutlined, CheckCircleOutlined, CloseCircleOutlined } from "@ant-design/icons";
+import { aiModelsAPI } from "../../utils/api";
 
 export const AIModelList: React.FC = () => {
   const { tableProps } = useTable({
     syncWithLocation: true,
   });
+
+  const [testingConnection, setTestingConnection] = useState<number | null>(null);
 
   const columns = [
     {
@@ -127,6 +130,7 @@ export const AIModelList: React.FC = () => {
               type="text"
               icon={<ApiOutlined />}
               size="small"
+              loading={testingConnection === record.id}
               onClick={() => handleTestConnection(record.id)}
             />
           </Tooltip>
@@ -140,18 +144,40 @@ export const AIModelList: React.FC = () => {
 
   const handleTestConnection = async (id: number) => {
     try {
-      // 这里可以调用测试连接的API
-      console.log("测试模型连接:", id);
-    } catch (error) {
+      setTestingConnection(id);
+      message.loading({ content: "正在测试连接...", key: "test-connection" });
+
+      const response = await aiModelsAPI.testModelConnection(id);
+
+      if (response.success) {
+        message.success({
+          content: `连接测试成功！响应时间: ${response.data?.responseTime || 0}ms`,
+          key: "test-connection",
+          duration: 3,
+        });
+      } else {
+        message.error({
+          content: response.message || "连接测试失败",
+          key: "test-connection",
+          duration: 3,
+        });
+      }
+    } catch (error: any) {
       console.error("测试连接失败:", error);
+      message.error({
+        content: error.response?.data?.message || "连接测试失败，请检查网络连接",
+        key: "test-connection",
+        duration: 3,
+      });
+    } finally {
+      setTestingConnection(null);
     }
   };
 
   return (
     <List
-      headerButtons={({ defaultButtons }) => (
+      headerButtons={() => (
         <>
-          {defaultButtons}
           <CreateButton>创建AI模型</CreateButton>
         </>
       )}
