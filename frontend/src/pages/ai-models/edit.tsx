@@ -35,14 +35,7 @@ export const AIModelEdit: React.FC = () => {
   };
 
   return (
-    <Edit
-      saveButtonProps={saveButtonProps}
-      headerButtons={({ defaultButtons }) => (
-        <>
-          {defaultButtons}
-        </>
-      )}
-    >
+    <Edit saveButtonProps={saveButtonProps}>
       <Form {...formProps} layout="vertical">
         <Row gutter={[16, 16]}>
           <Col xs={24} lg={12}>
