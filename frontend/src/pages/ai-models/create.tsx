@@ -164,9 +164,10 @@ export const AIModelCreate: React.FC = () => {
           <Row gutter={[16, 16]}>
             <Col xs={24} sm={12} lg={6}>
               <Form.Item
-                label="Temperature"
+                label="温度参数"
                 name={["parameters", "temperature"]}
                 initialValue={0.7}
+                tooltip="控制输出的随机性，值越高越随机"
               >
                 <InputNumber
                   min={0}
@@ -178,9 +179,10 @@ export const AIModelCreate: React.FC = () => {
             </Col>
             <Col xs={24} sm={12} lg={6}>
               <Form.Item
-                label="Max Tokens"
+                label="最大令牌数"
                 name={["parameters", "max_tokens"]}
                 initialValue={3000}
+                tooltip="单次生成的最大令牌数量"
               >
                 <InputNumber
                   min={1}
@@ -191,9 +193,10 @@ export const AIModelCreate: React.FC = () => {
             </Col>
             <Col xs={24} sm={12} lg={6}>
               <Form.Item
-                label="Top P"
+                label="Top P参数"
                 name={["parameters", "top_p"]}
                 initialValue={1.0}
+                tooltip="核采样参数，控制词汇选择范围"
               >
                 <InputNumber
                   min={0}
@@ -205,9 +208,10 @@ export const AIModelCreate: React.FC = () => {
             </Col>
             <Col xs={24} sm={12} lg={6}>
               <Form.Item
-                label="Frequency Penalty"
+                label="频率惩罚"
                 name={["parameters", "frequency_penalty"]}
                 initialValue={0}
+                tooltip="减少重复内容的惩罚参数"
               >
                 <InputNumber
                   min={-2}
