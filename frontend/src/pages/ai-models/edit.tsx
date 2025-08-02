@@ -159,9 +159,9 @@ export const AIModelEdit: React.FC = () => {
 
         <Divider />
 
-        <Card title="模型参数" size="small">
-          <Row gutter={[16, 16]}>
-            <Col xs={24} sm={12} lg={6}>
+        <Row gutter={[16, 16]}>
+          <Col xs={24} lg={12}>
+            <Card title="模型参数" size="small">
               <Form.Item
                 label="温度参数"
                 name={["parameters", "temperature"]}
@@ -174,8 +174,7 @@ export const AIModelEdit: React.FC = () => {
                   style={{ width: "100%" }}
                 />
               </Form.Item>
-            </Col>
-            <Col xs={24} sm={12} lg={6}>
+
               <Form.Item
                 label="最大令牌数"
                 name={["parameters", "max_tokens"]}
@@ -187,8 +186,7 @@ export const AIModelEdit: React.FC = () => {
                   style={{ width: "100%" }}
                 />
               </Form.Item>
-            </Col>
-            <Col xs={24} sm={12} lg={6}>
+
               <Form.Item
                 label="Top P参数"
                 name={["parameters", "top_p"]}
@@ -201,8 +199,7 @@ export const AIModelEdit: React.FC = () => {
                   style={{ width: "100%" }}
                 />
               </Form.Item>
-            </Col>
-            <Col xs={24} sm={12} lg={6}>
+
               <Form.Item
                 label="频率惩罚"
                 name={["parameters", "frequency_penalty"]}
@@ -215,21 +212,23 @@ export const AIModelEdit: React.FC = () => {
                   style={{ width: "100%" }}
                 />
               </Form.Item>
-            </Col>
-          </Row>
-        </Card>
+            </Card>
+          </Col>
 
-        <Card title="元数据" size="small">
-          <Form.Item
-            label="描述信息"
-            name={["metadata", "description"]}
-          >
-            <TextArea
-              rows={3}
-              placeholder="模型的详细描述信息（可选）"
-            />
-          </Form.Item>
-        </Card>
+          <Col xs={24} lg={12}>
+            <Card title="元数据" size="small">
+              <Form.Item
+                label="描述信息"
+                name={["metadata", "description"]}
+              >
+                <TextArea
+                  rows={8}
+                  placeholder="模型的详细描述信息（可选）"
+                />
+              </Form.Item>
+            </Card>
+          </Col>
+        </Row>
       </Form>
     </Edit>
   );
