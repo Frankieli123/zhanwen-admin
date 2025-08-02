@@ -91,14 +91,20 @@ export const AIModelList: React.FC = () => {
       title: "成本/1K tokens",
       dataIndex: "costPer1kTokens",
       key: "costPer1kTokens",
-      render: (value: number) => `¥${value.toFixed(4)}`,
+      render: (value: number | string) => {
+        const numValue = typeof value === 'string' ? parseFloat(value) : value;
+        return `¥${(numValue || 0).toFixed(4)}`;
+      },
       width: 120,
     },
     {
       title: "上下文窗口",
       dataIndex: "contextWindow",
       key: "contextWindow",
-      render: (value: number) => `${value.toLocaleString()} tokens`,
+      render: (value: number | string) => {
+        const numValue = typeof value === 'string' ? parseInt(value) : value;
+        return `${(numValue || 0).toLocaleString()} tokens`;
+      },
       width: 120,
     },
     {
