@@ -145,7 +145,7 @@ function App() {
                               text="占卜管理后台"
                             />
                           )}
-                          Sider={(props) => <ThemedSiderV2 {...props} />}
+                          Sider={(props) => <ThemedSiderV2 {...props} fixed />}
                         >
                           <Outlet />
                         </ThemedLayoutV2>
