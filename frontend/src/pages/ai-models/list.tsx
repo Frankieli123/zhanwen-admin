@@ -29,12 +29,7 @@ export const AIModelList: React.FC = () => {
       title: "模型名称",
       dataIndex: "displayName",
       key: "displayName",
-      render: (value: string, record: any) => (
-        <Space>
-          <strong>{value}</strong>
-          <Tag color="blue">{record.name}</Tag>
-        </Space>
-      ),
+      render: (value: string) => <strong>{value}</strong>,
     },
     {
       title: "提供商",

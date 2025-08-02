@@ -37,7 +37,7 @@ export const AIModelCreate: React.FC = () => {
   };
 
   return (
-    <Create saveButtonProps={saveButtonProps}>
+    <Create saveButtonProps={{...saveButtonProps, children: "保存"}}>
       <Form {...formProps} layout="vertical">
         <Row gutter={[16, 16]}>
           <Col xs={24} lg={12}>
