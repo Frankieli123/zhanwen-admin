@@ -4,6 +4,7 @@ import {
   ThemedLayoutV2,
   ThemedSiderV2,
   ThemedTitleV2,
+  ThemedHeaderV2,
   AuthPage,
 } from "@refinedev/antd";
 import "@refinedev/antd/dist/reset.css";
@@ -145,6 +146,7 @@ function App() {
                               text="占卜管理后台"
                             />
                           )}
+                          Header={() => <ThemedHeaderV2 sticky />}
                           Sider={(props) => <ThemedSiderV2 {...props} fixed />}
                         >
                           <Outlet />
