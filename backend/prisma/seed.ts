@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { encrypt } from '../src/utils/encryption';
+import { generateApiKey } from '../src/utils/apiKey';
 
 const prisma = new PrismaClient();
 
@@ -24,7 +25,8 @@ async function main() {
         'prompts:read', 'prompts:create', 'prompts:update', 'prompts:delete',
         'configs:read', 'configs:create', 'configs:update', 'configs:delete',
         'hexagrams:read', 'hexagrams:create', 'hexagrams:update', 'hexagrams:delete',
-        'analytics:read', 'users:read', 'users:create', 'users:update', 'users:delete'
+        'analytics:read', 'users:read', 'users:create', 'users:update', 'users:delete',
+        'api_keys:read', 'api_keys:create', 'api_keys:update', 'api_keys:delete'
       ],
       isActive: true,
     },
@@ -320,11 +322,31 @@ async function main() {
 
   console.log('✅ 创建默认应用配置');
 
+  // 8. 创建默认API Key
+  const defaultApiKey = await prisma.apiKey.upsert({
+    where: { name: '默认应用API Key' },
+    update: {},
+    create: {
+      name: '默认应用API Key',
+      key: generateApiKey(),
+      permissions: [
+        'configs:read',
+        'ai_models:read',
+        'prompts:read',
+      ],
+      description: '用于应用端获取配置的默认API Key',
+      isActive: true,
+    },
+  });
+
+  console.log('✅ 创建默认API Key:', defaultApiKey.name);
+
   console.log('🎉 数据库初始化完成！');
   console.log('📋 默认管理员账号:');
   console.log('   用户名: admin');
   console.log('   密码: admin123456');
   console.log('   邮箱: admin@divination.com');
+  console.log('🔑 默认API Key:', defaultApiKey.key);
 }
 
 main()
