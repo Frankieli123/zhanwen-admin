@@ -7,13 +7,10 @@ import {
   DeleteButton,
   DateField,
   TagField,
-  useMany,
   CreateButton,
-  useDelete,
-  useDeleteMany,
 } from "@refinedev/antd";
 import { Table, Space, Button, Tag, Tooltip, Modal, message } from "antd";
-import { EyeOutlined, KeyOutlined, DeleteOutlined, ReloadOutlined } from "@ant-design/icons";
+import { EyeOutlined, KeyOutlined, ReloadOutlined } from "@ant-design/icons";
 import { apiKeysAPI } from "../../utils/api";
 
 export const ApiKeyList: React.FC = () => {
@@ -30,9 +27,6 @@ export const ApiKeyList: React.FC = () => {
       ];
     },
   });
-
-  const { mutate: deleteOne } = useDelete();
-  const { mutate: deleteMany } = useDeleteMany();
 
   // 重新生成 API Key
   const handleRegenerate = async (id: number, name: string) => {
@@ -184,12 +178,6 @@ export const ApiKeyList: React.FC = () => {
         rowKey="id"
         scroll={{ x: 1200 }}
         size="small"
-        rowSelection={{
-          type: "checkbox",
-          onChange: (selectedRowKeys) => {
-            // 可以在这里处理批量选择
-          },
-        }}
       />
     </List>
   );

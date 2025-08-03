@@ -75,13 +75,12 @@ export const ApiKeyEdit: React.FC = () => {
                   addonBefore="Key"
                 />
                 <Input
-                  style={{ width: '80px' }}
+                  style={{ width: '80px', cursor: 'pointer', backgroundColor: '#f0f0f0' }}
                   value="复制"
                   readOnly
                   onClick={() => {
                     navigator.clipboard.writeText(apiKeyData.key);
                   }}
-                  style={{ cursor: 'pointer', backgroundColor: '#f0f0f0' }}
                 />
               </Input.Group>
             </Form.Item>
