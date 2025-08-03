@@ -107,7 +107,7 @@ export const getApiKeyById = async (req: Request, res: Response): Promise<void> 
  * 创建API Key
  */
 export const createApiKey = async (req: Request, res: Response): Promise<void> => {
-  const { name, permissions, description, expiresAt } = req.body;
+  const { name, permissions, description, expiresAt, isActive = true } = req.body;
 
   // 生成API Key
   const key = generateApiKey();
@@ -119,6 +119,7 @@ export const createApiKey = async (req: Request, res: Response): Promise<void> =
       permissions: permissions || [],
       description,
       expiresAt: expiresAt ? new Date(expiresAt) : null,
+      isActive,
     },
     select: {
       id: true,

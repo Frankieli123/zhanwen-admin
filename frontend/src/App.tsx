@@ -41,7 +41,7 @@ import { ConfigList, ConfigCreate, ConfigEdit, ConfigShow } from "./pages/config
 import { HexagramList } from "./pages/hexagrams/list";
 import { HexagramShow } from "./pages/hexagrams/show";
 
-// API Key 管理页面
+// API KEY 管理页面
 import { ApiKeyList, ApiKeyCreate, ApiKeyEdit, ApiKeyShow } from "./pages/apiKeys";
 
 // 数据分析页面
@@ -214,7 +214,7 @@ function App() {
                       <Route path="show/:id" element={<HexagramShow />} />
                     </Route>
 
-                    {/* API Key 管理路由 */}
+                    {/* API KEY 管理路由 */}
                     <Route path="/api-keys">
                       <Route index element={<ApiKeyList />} />
                       <Route path="create" element={<ApiKeyCreate />} />

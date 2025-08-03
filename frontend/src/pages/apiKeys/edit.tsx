@@ -1,8 +1,9 @@
 import React from "react";
 import { Edit, useForm } from "@refinedev/antd";
-import { Form, Input, Select, Switch, DatePicker, Card, Space, Tag } from "antd";
-import { KeyOutlined } from "@ant-design/icons";
+import { Form, Input, Select, Switch, DatePicker, Card, Space, Tag, Button, message, Modal } from "antd";
+import { KeyOutlined, ReloadOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
+import { apiKeysAPI } from "../../utils/api";
 
 const { TextArea } = Input;
 const { Option } = Select;
@@ -22,6 +23,27 @@ export const ApiKeyEdit: React.FC = () => {
   });
 
   const apiKeyData = queryResult?.data?.data;
+
+  // 重新生成 API KEY
+  const handleRegenerate = () => {
+    Modal.confirm({
+      title: '确认重新生成 API KEY',
+      content: `确定要重新生成 "${apiKeyData?.name}" 的 API KEY 吗？原有的 API KEY 将立即失效，所有使用该 KEY 的应用将无法访问。`,
+      okText: '确认重新生成',
+      cancelText: '取消',
+      okType: 'danger',
+      onOk: async () => {
+        try {
+          const response = await apiKeysAPI.regenerateApiKey(apiKeyData.id);
+          message.success('API KEY 重新生成成功');
+          // 刷新页面数据
+          queryResult.refetch();
+        } catch (error: any) {
+          message.error(error.response?.data?.message || '重新生成失败');
+        }
+      },
+    });
+  };
 
   return (
     <Edit
@@ -73,19 +95,28 @@ export const ApiKeyEdit: React.FC = () => {
             <Form.Item label="API KEY">
               <Input.Group compact>
                 <Input
-                  style={{ width: 'calc(100% - 80px)' }}
+                  style={{ width: 'calc(100% - 160px)' }}
                   value={apiKeyData.key}
                   readOnly
                   addonBefore="KEY"
                 />
-                <Input
-                  style={{ width: '80px', cursor: 'pointer', backgroundColor: '#f0f0f0' }}
-                  value="复制"
-                  readOnly
+                <Button
+                  style={{ width: '80px' }}
                   onClick={() => {
                     navigator.clipboard.writeText(apiKeyData.key);
+                    message.success('API KEY 已复制到剪贴板');
                   }}
-                />
+                >
+                  复制
+                </Button>
+                <Button
+                  style={{ width: '80px' }}
+                  icon={<ReloadOutlined />}
+                  onClick={handleRegenerate}
+                  danger
+                >
+                  重新生成
+                </Button>
               </Input.Group>
             </Form.Item>
           )}
