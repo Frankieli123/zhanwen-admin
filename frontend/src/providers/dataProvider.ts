@@ -1,5 +1,5 @@
 import { DataProvider } from "@refinedev/core";
-import { aiModelsAPI, promptsAPI, configsAPI, hexagramsAPI, analyticsAPI } from "../utils/api";
+import { aiModelsAPI, promptsAPI, configsAPI, hexagramsAPI, analyticsAPI, apiKeysAPI } from "../utils/api";
 
 // 资源映射
 const resourceMap: Record<string, any> = {
@@ -8,6 +8,7 @@ const resourceMap: Record<string, any> = {
   "configs": configsAPI,
   "hexagrams": hexagramsAPI,
   "analytics": analyticsAPI,
+  "api-keys": apiKeysAPI,
 };
 
 export const dataProvider: DataProvider = {
@@ -54,6 +55,8 @@ export const dataProvider: DataProvider = {
         response = await api.getConfigs(params);
       } else if (resource === "hexagrams") {
         response = await api.getHexagrams(params);
+      } else if (resource === "api-keys") {
+        response = await api.getApiKeys(params);
       } else {
         throw new Error(`不支持的资源类型: ${resource}`);
       }
@@ -84,6 +87,8 @@ export const dataProvider: DataProvider = {
         response = await api.getConfig(Number(id));
       } else if (resource === "hexagrams") {
         response = await api.getHexagramById(Number(id));
+      } else if (resource === "api-keys") {
+        response = await api.getApiKey(Number(id));
       } else {
         throw new Error(`不支持的资源类型: ${resource}`);
       }
@@ -111,6 +116,8 @@ export const dataProvider: DataProvider = {
         response = await api.createTemplate(variables);
       } else if (resource === "configs") {
         response = await api.createConfig(variables);
+      } else if (resource === "api-keys") {
+        response = await api.createApiKey(variables);
       } else {
         throw new Error(`不支持的资源类型: ${resource}`);
       }
@@ -138,6 +145,8 @@ export const dataProvider: DataProvider = {
         response = await api.updateTemplate(Number(id), variables);
       } else if (resource === "configs") {
         response = await api.updateConfig(Number(id), variables);
+      } else if (resource === "api-keys") {
+        response = await api.updateApiKey(Number(id), variables);
       } else {
         throw new Error(`不支持的资源类型: ${resource}`);
       }
@@ -164,6 +173,8 @@ export const dataProvider: DataProvider = {
         await api.deleteTemplate(Number(id));
       } else if (resource === "configs") {
         await api.deleteConfig(Number(id));
+      } else if (resource === "api-keys") {
+        await api.deleteApiKey(Number(id));
       } else {
         throw new Error(`不支持的资源类型: ${resource}`);
       }
@@ -192,6 +203,8 @@ export const dataProvider: DataProvider = {
         await api.batchDeleteTemplates(numericIds);
       } else if (resource === "configs") {
         await api.batchDeleteConfigs(numericIds);
+      } else if (resource === "api-keys") {
+        await api.batchDeleteApiKeys(numericIds);
       } else {
         throw new Error(`不支持的资源类型: ${resource}`);
       }
