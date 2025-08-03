@@ -3,6 +3,9 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
+// 防抖更新缓存，避免频繁数据库写入
+const updateQueue = new Map<number, NodeJS.Timeout>();
+
 // 扩展 Request 类型
 declare global {
   namespace Express {
@@ -65,10 +68,8 @@ export const authenticateApiKey = async (
       permissions: apiKeyRecord.permissions
     };
 
-    // 异步更新使用统计（不阻塞请求）
-    updateApiKeyUsage(apiKeyRecord.id).catch((error: any) => {
-      console.error('更新API Key使用统计失败:', error);
-    });
+    // 异步更新使用统计（防抖模式，不阻塞请求）
+    debouncedUpdateApiKeyUsage(apiKeyRecord.id);
 
     next();
   } catch (error) {
@@ -82,21 +83,34 @@ export const authenticateApiKey = async (
 };
 
 /**
- * 异步更新 API Key 使用统计
+ * 防抖更新 API Key 使用统计（高并发优化）
+ * 同一个 API Key 在短时间内的多次调用会被合并为一次数据库更新
  */
-async function updateApiKeyUsage(apiKeyId: number): Promise<void> {
-  try {
-    await prisma.apiKey.update({
-      where: { id: apiKeyId },
-      data: {
-        lastUsedAt: new Date(),
-        usageCount: { increment: 1 }
-      }
-    });
-  } catch (error) {
-    console.error('更新API Key使用统计失败:', error);
-    // 不抛出错误，避免影响主要业务流程
+function debouncedUpdateApiKeyUsage(apiKeyId: number): void {
+  // 清除之前的定时器
+  const existingTimer = updateQueue.get(apiKeyId);
+  if (existingTimer) {
+    clearTimeout(existingTimer);
   }
+
+  // 设置新的定时器，500ms 后执行更新
+  const timer = setTimeout(async () => {
+    try {
+      await prisma.apiKey.update({
+        where: { id: apiKeyId },
+        data: {
+          lastUsedAt: new Date(),
+          usageCount: { increment: 1 }
+        }
+      });
+      updateQueue.delete(apiKeyId);
+    } catch (error) {
+      console.error('更新API Key使用统计失败:', error);
+      updateQueue.delete(apiKeyId);
+    }
+  }, 500); // 500ms 防抖延迟
+
+  updateQueue.set(apiKeyId, timer);
 }
 
 /**
