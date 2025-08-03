@@ -1,32 +1,43 @@
 import React, { useState, useEffect } from "react";
 import { Card, Row, Col, Statistic, Table, Tag, Spin } from "antd";
-import { 
-  UserOutlined, 
-  RobotOutlined, 
-  FileTextOutlined, 
+import {
+  UserOutlined,
+  RobotOutlined,
+  FileTextOutlined,
   DatabaseOutlined,
   TrophyOutlined,
   ClockCircleOutlined
 } from "@ant-design/icons";
-import { useApiUrl, useCustom } from "@refinedev/core";
+import { analyticsAPI } from "../../utils/api";
 
 export const Analytics: React.FC = () => {
-  const apiUrl = useApiUrl();
-  
-  const { data: overviewData, isLoading: overviewLoading } = useCustom({
-    url: `${apiUrl}/analytics/overview`,
-    method: "get",
-  });
+  const [overviewData, setOverviewData] = useState<any>(null);
+  const [hexagramStats, setHexagramStats] = useState<any>(null);
+  const [modelPerformance, setModelPerformance] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  const { data: hexagramStats, isLoading: hexagramLoading } = useCustom({
-    url: `${apiUrl}/analytics/hexagrams`,
-    method: "get",
-  });
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const [overview, hexagrams, models] = await Promise.all([
+          analyticsAPI.getOverview(),
+          analyticsAPI.getHexagramStatistics(),
+          analyticsAPI.getModelPerformance()
+        ]);
 
-  const { data: modelPerformance, isLoading: modelLoading } = useCustom({
-    url: `${apiUrl}/analytics/models`,
-    method: "get",
-  });
+        setOverviewData(overview.data);
+        setHexagramStats(hexagrams.data);
+        setModelPerformance(models.data);
+      } catch (error) {
+        console.error('获取分析数据失败:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
 
   const overview = overviewData?.data;
   const hexagrams = hexagramStats?.data;
@@ -129,7 +140,7 @@ export const Analytics: React.FC = () => {
     },
   ];
 
-  if (overviewLoading || hexagramLoading || modelLoading) {
+  if (loading) {
     return (
       <div style={{ textAlign: 'center', padding: '50px' }}>
         <Spin size="large" />

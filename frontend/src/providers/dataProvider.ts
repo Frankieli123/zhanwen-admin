@@ -12,6 +12,13 @@ const resourceMap: Record<string, any> = {
 };
 
 export const dataProvider: DataProvider = {
+  // 获取 API URL
+  getApiUrl: () => {
+    return import.meta.env.VITE_API_URL || (
+      import.meta.env.MODE === 'production' ? '/api' : 'http://localhost:3001/api'
+    );
+  },
+
   // 获取列表
   getList: async ({ resource, pagination, sorters, filters, meta }) => {
     const api = resourceMap[resource];
@@ -215,13 +222,6 @@ export const dataProvider: DataProvider = {
     } catch (error: any) {
       throw new Error(error.response?.data?.message || `批量删除${resource}失败`);
     }
-  },
-
-  // 获取API URL（用于某些特殊操作）
-  getApiUrl: () => {
-    return import.meta.env.VITE_API_URL || (
-      import.meta.env.MODE === 'production' ? '' : 'http://localhost:3001'
-    );
   },
 
   // 自定义方法
