@@ -157,7 +157,7 @@ export const AIModelCreate: React.FC = () => {
         ...saveButtonProps,
         children: "保存"
       }}
-      title="创建AI模型"
+      title="创建 AI 模型"
       breadcrumb={false}
     >
       <Form {...formProps} layout="vertical">

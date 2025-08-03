@@ -37,9 +37,7 @@ import { PromptList, PromptCreate, PromptEdit, PromptShow } from "./pages/prompt
 // 配置管理页面
 import { ConfigList, ConfigCreate, ConfigEdit, ConfigShow } from "./pages/configs";
 
-// 卦象数据管理页面
-import { HexagramList } from "./pages/hexagrams/list";
-import { HexagramShow } from "./pages/hexagrams/show";
+
 
 // API KEY 管理页面
 import { ApiKeyList, ApiKeyCreate, ApiKeyEdit, ApiKeyShow, ApiKeyStats } from "./pages/apiKeys";
@@ -54,7 +52,6 @@ import {
   FileTextOutlined,
   SettingOutlined,
   BarChartOutlined,
-  DatabaseOutlined,
   KeyOutlined,
 } from "@ant-design/icons";
 
@@ -119,17 +116,6 @@ function App() {
                     meta: {
                       label: "应用配置",
                       icon: <SettingOutlined />,
-                    },
-                  },
-                  {
-                    name: "hexagrams",
-                    list: "/hexagrams",
-                    create: "/hexagrams/create",
-                    edit: "/hexagrams/edit/:id",
-                    show: "/hexagrams/show/:id",
-                    meta: {
-                      label: "卦象数据",
-                      icon: <DatabaseOutlined />,
                     },
                   },
                   {
@@ -208,11 +194,7 @@ function App() {
                       <Route path="show/:id" element={<ConfigShow />} />
                     </Route>
 
-                    {/* 卦象数据管理路由 */}
-                    <Route path="/hexagrams">
-                      <Route index element={<HexagramList />} />
-                      <Route path="show/:id" element={<HexagramShow />} />
-                    </Route>
+
 
                     {/* API KEY 管理路由 */}
                     <Route path="/api-keys">

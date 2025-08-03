@@ -72,7 +72,7 @@ export const AIModelShow: React.FC = () => {
     <Show
       isLoading={isLoading}
       breadcrumb={false}
-      title="AI模型详情"
+      title="AI 模型详情"
       headerButtons={() => (
         <>
           <Button

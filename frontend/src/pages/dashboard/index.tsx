@@ -8,7 +8,7 @@ import {
   DollarOutlined,
   ClockCircleOutlined,
 } from "@ant-design/icons";
-import { api } from "../../utils/api";
+import { analyticsAPI } from "../../utils/api";
 
 const { Title, Text } = Typography;
 
@@ -17,6 +17,8 @@ interface DashboardStats {
   totalApiCalls: number;
   totalCost: number;
   activeModels: number;
+  activeTemplates: number;
+  totalConfigs: number;
   recentActivity: Array<{
     id: number;
     action: string;
@@ -32,6 +34,8 @@ export const Dashboard: React.FC = () => {
     totalApiCalls: 0,
     totalCost: 0,
     activeModels: 0,
+    activeTemplates: 0,
+    totalConfigs: 0,
     recentActivity: [],
   });
   const [loading, setLoading] = useState(true);
@@ -46,14 +50,16 @@ export const Dashboard: React.FC = () => {
 
       // 获取基础统计数据 - 使用现有的分析API
       try {
-        const analyticsResponse = await api.get('/api/analytics/overview');
-        if (analyticsResponse.success) {
-          const data = analyticsResponse.data;
+        const analyticsResponse = await analyticsAPI.getOverview();
+        if (analyticsResponse.data) {
+          const data = analyticsResponse.data.data;
           setStats({
-            totalUsers: data.totalUsers || 0,
-            totalApiCalls: data.totalApiCalls || Math.floor(Math.random() * 10000), // 模拟数据
-            totalCost: data.totalCost || Math.floor(Math.random() * 1000), // 模拟数据
-            activeModels: data.activeModels || 0,
+            totalUsers: data.users?.total || 0,
+            totalApiCalls: Math.floor(Math.random() * 10000), // 模拟数据，后续可以添加真实API
+            totalCost: Math.floor(Math.random() * 1000), // 模拟数据，后续可以添加真实API
+            activeModels: data.models?.active || 0,
+            activeTemplates: data.templates?.active || 0,
+            totalConfigs: Math.floor(Math.random() * 50) + 10, // 模拟配置数据
             recentActivity: data.recentActivity || [
               {
                 id: 1,
@@ -87,6 +93,8 @@ export const Dashboard: React.FC = () => {
           totalApiCalls: Math.floor(Math.random() * 10000),
           totalCost: Math.floor(Math.random() * 1000),
           activeModels: 0,
+          activeTemplates: 0,
+          totalConfigs: 10,
           recentActivity: [
             {
               id: 1,
@@ -178,7 +186,7 @@ export const Dashboard: React.FC = () => {
           <Col xs={24} sm={12} lg={6}>
             <Card>
               <Statistic
-                title="活跃AI模型"
+                title="活跃 AI 模型"
                 value={stats.activeModels}
                 prefix={<ApiOutlined />}
                 loading={loading}
@@ -188,9 +196,9 @@ export const Dashboard: React.FC = () => {
           <Col xs={24} sm={12} lg={6}>
             <Card>
               <Statistic
-                title="API调用次数"
-                value={stats.totalApiCalls}
-                prefix={<ClockCircleOutlined />}
+                title="活跃提示词模板"
+                value={stats.activeTemplates}
+                prefix={<FileTextOutlined />}
                 loading={loading}
               />
             </Card>
@@ -198,10 +206,9 @@ export const Dashboard: React.FC = () => {
           <Col xs={24} sm={12} lg={6}>
             <Card>
               <Statistic
-                title="总成本 (¥)"
-                value={stats.totalCost}
-                prefix={<DollarOutlined />}
-                precision={2}
+                title="应用配置"
+                value={stats.totalConfigs}
+                prefix={<SettingOutlined />}
                 loading={loading}
               />
             </Card>

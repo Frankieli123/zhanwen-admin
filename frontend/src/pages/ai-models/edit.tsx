@@ -163,7 +163,7 @@ export const AIModelEdit: React.FC = () => {
 
   return (
     <Edit
-      title="编辑AI模型"
+      title="编辑 AI 模型"
       breadcrumb={false}
       saveButtonProps={{
         ...saveButtonProps,
