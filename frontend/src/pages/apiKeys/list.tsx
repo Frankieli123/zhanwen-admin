@@ -28,17 +28,17 @@ export const ApiKeyList: React.FC = () => {
     },
   });
 
-  // 重新生成 API Key
+  // 重新生成 API KEY
   const handleRegenerate = async (id: number, name: string) => {
     Modal.confirm({
       title: '确认重新生成',
-      content: `确定要重新生成 "${name}" 的 API Key 吗？原有的 API Key 将失效。`,
+      content: `确定要重新生成 "${name}" 的 API KEY 吗？原有的 API KEY 将失效。`,
       okText: '确认',
       cancelText: '取消',
       onOk: async () => {
         try {
           await apiKeysAPI.regenerateApiKey(id);
-          message.success('API Key 重新生成成功');
+          message.success('API KEY 重新生成成功');
           // 刷新表格
           window.location.reload();
         } catch (error) {
@@ -48,16 +48,16 @@ export const ApiKeyList: React.FC = () => {
     });
   };
 
-  // 复制 API Key
+  // 复制 API KEY
   const handleCopyApiKey = (apiKey: string) => {
     navigator.clipboard.writeText(apiKey).then(() => {
-      message.success('API Key 已复制到剪贴板');
+      message.success('API KEY 已复制到剪贴板');
     }).catch(() => {
       message.error('复制失败');
     });
   };
 
-  // 掩码显示 API Key
+  // 掩码显示 API KEY
   const maskApiKey = (apiKey: string) => {
     if (apiKey.length <= 12) return apiKey;
     const prefix = apiKey.substring(0, 8);
@@ -74,16 +74,16 @@ export const ApiKeyList: React.FC = () => {
       sorter: true,
     },
     {
-      title: "API Key",
+      title: "API KEY",
       dataIndex: "key",
       key: "key",
       render: (value: string) => (
         <Space>
           <code style={{ fontSize: '12px' }}>{maskApiKey(value)}</code>
-          <Tooltip title="复制完整 API Key">
-            <Button 
-              type="text" 
-              size="small" 
+          <Tooltip title="复制完整 API KEY">
+            <Button
+              type="text"
+              size="small"
               icon={<EyeOutlined />}
               onClick={() => handleCopyApiKey(value)}
             />
@@ -165,12 +165,8 @@ export const ApiKeyList: React.FC = () => {
 
   return (
     <List
-      headerButtons={({ defaultButtons }) => (
-        <>
-          {defaultButtons}
-          <CreateButton icon={<KeyOutlined />}>创建 API Key</CreateButton>
-        </>
-      )}
+      breadcrumb={false}
+      headerButtons={() => []}
     >
       <Table
         {...tableProps}

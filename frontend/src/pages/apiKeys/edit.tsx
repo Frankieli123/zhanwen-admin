@@ -24,7 +24,11 @@ export const ApiKeyEdit: React.FC = () => {
   const apiKeyData = queryResult?.data?.data;
 
   return (
-    <Edit saveButtonProps={saveButtonProps} title="编辑 API Key">
+    <Edit
+      saveButtonProps={saveButtonProps}
+      title="编辑 API KEY"
+      breadcrumb={false}
+    >
       <Form 
         {...formProps} 
         layout="vertical"
@@ -42,12 +46,12 @@ export const ApiKeyEdit: React.FC = () => {
             label="名称"
             name="name"
             rules={[
-              { required: true, message: "请输入 API Key 名称" },
+              { required: true, message: "请输入 API KEY 名称" },
               { max: 100, message: "名称不能超过100个字符" }
             ]}
           >
-            <Input 
-              placeholder="请输入 API Key 名称"
+            <Input
+              placeholder="请输入 API KEY 名称"
               prefix={<KeyOutlined />}
             />
           </Form.Item>
@@ -59,20 +63,20 @@ export const ApiKeyEdit: React.FC = () => {
               { max: 500, message: "描述不能超过500个字符" }
             ]}
           >
-            <TextArea 
+            <TextArea
               rows={3}
-              placeholder="请输入 API Key 的用途描述"
+              placeholder="请输入 API KEY 的用途描述"
             />
           </Form.Item>
 
           {apiKeyData && (
-            <Form.Item label="API Key">
+            <Form.Item label="API KEY">
               <Input.Group compact>
                 <Input
                   style={{ width: 'calc(100% - 80px)' }}
                   value={apiKeyData.key}
                   readOnly
-                  addonBefore="Key"
+                  addonBefore="KEY"
                 />
                 <Input
                   style={{ width: '80px', cursor: 'pointer', backgroundColor: '#f0f0f0' }}

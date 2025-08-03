@@ -21,19 +21,23 @@ export const ApiKeyCreate: React.FC = () => {
   });
 
   return (
-    <Create saveButtonProps={saveButtonProps} title="创建 API Key">
+    <Create
+      saveButtonProps={saveButtonProps}
+      title="创建 API KEY"
+      breadcrumb={false}
+    >
       <Form {...formProps} layout="vertical">
         <Card title="基本信息" style={{ marginBottom: 16 }}>
           <Form.Item
             label="名称"
             name="name"
             rules={[
-              { required: true, message: "请输入 API Key 名称" },
+              { required: true, message: "请输入 API KEY 名称" },
               { max: 100, message: "名称不能超过100个字符" }
             ]}
           >
-            <Input 
-              placeholder="请输入 API Key 名称，如：小程序API Key"
+            <Input
+              placeholder="请输入 API KEY 名称，如：小程序API KEY"
               prefix={<KeyOutlined />}
             />
           </Form.Item>
@@ -45,9 +49,9 @@ export const ApiKeyCreate: React.FC = () => {
               { max: 500, message: "描述不能超过500个字符" }
             ]}
           >
-            <TextArea 
+            <TextArea
               rows={3}
-              placeholder="请输入 API Key 的用途描述"
+              placeholder="请输入 API KEY 的用途描述"
             />
           </Form.Item>
         </Card>

@@ -39,18 +39,22 @@ export const ApiKeyShow: React.FC = () => {
   }
 
   return (
-    <Show isLoading={isLoading} title="API Key 详情">
+    <Show
+      isLoading={isLoading}
+      title="API KEY 详情"
+      breadcrumb={false}
+    >
       <Card title="基本信息" style={{ marginBottom: 16 }}>
         <Descriptions column={2} bordered>
           <Descriptions.Item label="名称" span={2}>
             <Text strong>{record?.name}</Text>
           </Descriptions.Item>
           
-          <Descriptions.Item label="API Key" span={2}>
+          <Descriptions.Item label="API KEY" span={2}>
             <Space>
-              <code style={{ 
-                fontSize: '12px', 
-                padding: '4px 8px', 
+              <code style={{
+                fontSize: '12px',
+                padding: '4px 8px',
                 backgroundColor: '#f6f8fa',
                 border: '1px solid #e1e4e8',
                 borderRadius: '4px'

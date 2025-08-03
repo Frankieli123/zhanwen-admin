@@ -139,7 +139,7 @@ function App() {
                     edit: "/api-keys/edit/:id",
                     show: "/api-keys/show/:id",
                     meta: {
-                      label: "API Key 管理",
+                      label: "API KEY 管理",
                       icon: <KeyOutlined />,
                     },
                   },
