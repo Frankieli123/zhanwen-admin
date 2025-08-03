@@ -42,7 +42,7 @@ import { HexagramList } from "./pages/hexagrams/list";
 import { HexagramShow } from "./pages/hexagrams/show";
 
 // API KEY 管理页面
-import { ApiKeyList, ApiKeyCreate, ApiKeyEdit, ApiKeyShow } from "./pages/apiKeys";
+import { ApiKeyList, ApiKeyCreate, ApiKeyEdit, ApiKeyShow, ApiKeyStats } from "./pages/apiKeys";
 
 // 数据分析页面
 import { Analytics } from "./pages/analytics";
@@ -220,6 +220,7 @@ function App() {
                       <Route path="create" element={<ApiKeyCreate />} />
                       <Route path="edit/:id" element={<ApiKeyEdit />} />
                       <Route path="show/:id" element={<ApiKeyShow />} />
+                      <Route path="stats" element={<ApiKeyStats />} />
                     </Route>
 
                     {/* 数据分析路由 */}

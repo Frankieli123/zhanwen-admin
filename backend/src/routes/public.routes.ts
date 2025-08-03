@@ -274,4 +274,296 @@ router.get(
   })
 );
 
+/**
+ * @swagger
+ * /public/ai-models/providers:
+ *   get:
+ *     summary: 获取活跃的AI提供商列表（公开接口）
+ *     tags: [Public API]
+ *     security:
+ *       - apiKey: []
+ *     responses:
+ *       200:
+ *         description: 获取成功
+ */
+router.get(
+  '/public/ai-models/providers',
+  authenticateApiKey,
+  requireApiPermission('ai_models:read'),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const providers = await prisma.aiProvider.findMany({
+      where: {
+        isActive: true,
+      },
+      select: {
+        id: true,
+        name: true,
+        displayName: true,
+        baseUrl: true,
+        description: true,
+        supportedModels: true,
+      },
+      orderBy: {
+        displayName: 'asc'
+      }
+    });
+
+    const response: ApiResponse = {
+      success: true,
+      message: '获取AI提供商列表成功',
+      data: providers,
+    };
+
+    res.json(response);
+  })
+);
+
+/**
+ * @swagger
+ * /public/ai-models/by-type/{type}:
+ *   get:
+ *     summary: 根据类型获取AI模型（公开接口）
+ *     tags: [Public API]
+ *     security:
+ *       - apiKey: []
+ *     parameters:
+ *       - in: path
+ *         name: type
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [chat, completion, embedding]
+ *         description: 模型类型
+ *     responses:
+ *       200:
+ *         description: 获取成功
+ */
+router.get(
+  '/public/ai-models/by-type/:type',
+  authenticateApiKey,
+  requireApiPermission('ai_models:read'),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const { type } = req.params;
+
+    const models = await prisma.aiModel.findMany({
+      where: {
+        isActive: true,
+        modelType: type,
+      },
+      include: {
+        provider: {
+          select: {
+            name: true,
+            displayName: true,
+            baseUrl: true,
+          }
+        }
+      },
+      orderBy: [
+        { priority: 'asc' },
+        { displayName: 'asc' }
+      ]
+    });
+
+    const response: ApiResponse = {
+      success: true,
+      message: `获取${type}类型AI模型成功`,
+      data: models,
+    };
+
+    res.json(response);
+  })
+);
+
+/**
+ * @swagger
+ * /public/prompts/by-name/{name}:
+ *   get:
+ *     summary: 根据名称获取提示词模板（公开接口）
+ *     tags: [Public API]
+ *     security:
+ *       - apiKey: []
+ *     parameters:
+ *       - in: path
+ *         name: name
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 模板名称
+ *     responses:
+ *       200:
+ *         description: 获取成功
+ *       404:
+ *         description: 模板不存在
+ */
+router.get(
+  '/public/prompts/by-name/:name',
+  authenticateApiKey,
+  requireApiPermission('prompts:read'),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const { name } = req.params;
+
+    const template = await prisma.promptTemplate.findFirst({
+      where: {
+        name,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        name: true,
+        type: true,
+        systemPrompt: true,
+        userPromptTemplate: true,
+        formatInstructions: true,
+        version: true,
+        updatedAt: true,
+      }
+    });
+
+    if (!template) {
+      res.status(404).json({
+        success: false,
+        message: '提示词模板不存在',
+        code: 'TEMPLATE_NOT_FOUND'
+      });
+      return;
+    }
+
+    const response: ApiResponse = {
+      success: true,
+      message: '获取提示词模板成功',
+      data: template,
+    };
+
+    res.json(response);
+  })
+);
+
+/**
+ * @swagger
+ * /public/hexagrams/all:
+ *   get:
+ *     summary: 获取所有卦象数据（公开接口）
+ *     tags: [Public API]
+ *     security:
+ *       - apiKey: []
+ *     responses:
+ *       200:
+ *         description: 获取成功
+ */
+router.get(
+  '/public/hexagrams/all',
+  authenticateApiKey,
+  requireApiPermission('hexagrams:read'),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const hexagrams = await prisma.hexagram.findMany({
+      select: {
+        id: true,
+        number: true,
+        name: true,
+        chineseName: true,
+        symbol: true,
+        upperTrigram: true,
+        lowerTrigram: true,
+        description: true,
+        interpretation: true,
+        keywords: true,
+        element: true,
+        season: true,
+        direction: true,
+        updatedAt: true,
+      },
+      orderBy: {
+        number: 'asc'
+      }
+    });
+
+    const response: ApiResponse = {
+      success: true,
+      message: '获取卦象数据成功',
+      data: hexagrams,
+    };
+
+    res.json(response);
+  })
+);
+
+/**
+ * @swagger
+ * /public/hexagrams/{number}:
+ *   get:
+ *     summary: 根据卦象编号获取详细信息（公开接口）
+ *     tags: [Public API]
+ *     security:
+ *       - apiKey: []
+ *     parameters:
+ *       - in: path
+ *         name: number
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 64
+ *         description: 卦象编号（1-64）
+ *     responses:
+ *       200:
+ *         description: 获取成功
+ *       404:
+ *         description: 卦象不存在
+ */
+router.get(
+  '/public/hexagrams/:number',
+  authenticateApiKey,
+  requireApiPermission('hexagrams:read'),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const number = parseInt(req.params.number);
+
+    if (isNaN(number) || number < 1 || number > 64) {
+      res.status(400).json({
+        success: false,
+        message: '卦象编号必须是1-64之间的整数',
+        code: 'INVALID_HEXAGRAM_NUMBER'
+      });
+      return;
+    }
+
+    const hexagram = await prisma.hexagram.findFirst({
+      where: { number },
+      select: {
+        id: true,
+        number: true,
+        name: true,
+        chineseName: true,
+        symbol: true,
+        upperTrigram: true,
+        lowerTrigram: true,
+        description: true,
+        interpretation: true,
+        keywords: true,
+        element: true,
+        season: true,
+        direction: true,
+        updatedAt: true,
+      }
+    });
+
+    if (!hexagram) {
+      res.status(404).json({
+        success: false,
+        message: '卦象不存在',
+        code: 'HEXAGRAM_NOT_FOUND'
+      });
+      return;
+    }
+
+    const response: ApiResponse = {
+      success: true,
+      message: '获取卦象详情成功',
+      data: hexagram,
+    };
+
+    res.json(response);
+  })
+);
+
 export default router;

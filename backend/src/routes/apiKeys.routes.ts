@@ -341,4 +341,95 @@ router.delete(
   batchDeleteApiKeys
 );
 
+/**
+ * @swagger
+ * /api-keys/usage-stats:
+ *   get:
+ *     summary: 获取API Key使用统计
+ *     tags: [API Keys]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: days
+ *         schema:
+ *           type: integer
+ *           default: 30
+ *         description: 统计天数
+ *     responses:
+ *       200:
+ *         description: 获取成功
+ */
+router.get(
+  '/api-keys/usage-stats',
+  requirePermission('api_keys:read'),
+  validate({
+    query: Joi.object({
+      days: Joi.number().integer().min(1).max(365).default(30),
+    }),
+  }),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const { days = 30 } = req.query;
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - Number(days));
+
+    // 获取所有API Key的基本统计
+    const apiKeys = await prisma.apiKey.findMany({
+      select: {
+        id: true,
+        name: true,
+        usageCount: true,
+        lastUsedAt: true,
+        isActive: true,
+        createdAt: true,
+      },
+      orderBy: {
+        usageCount: 'desc'
+      }
+    });
+
+    // 计算总体统计
+    const totalUsage = apiKeys.reduce((sum, key) => sum + (key.usageCount || 0), 0);
+    const activeKeys = apiKeys.filter(key => key.isActive).length;
+    const recentlyUsedKeys = apiKeys.filter(key =>
+      key.lastUsedAt && key.lastUsedAt >= startDate
+    ).length;
+
+    const response: ApiResponse = {
+      success: true,
+      message: '获取API Key使用统计成功',
+      data: {
+        summary: {
+          totalKeys: apiKeys.length,
+          activeKeys,
+          recentlyUsedKeys,
+          totalUsage,
+          averageUsage: apiKeys.length > 0 ? Math.round(totalUsage / apiKeys.length) : 0,
+        },
+        apiKeys: apiKeys.map(key => ({
+          id: key.id,
+          name: key.name,
+          usageCount: key.usageCount || 0,
+          lastUsedAt: key.lastUsedAt,
+          isActive: key.isActive,
+          createdAt: key.createdAt,
+          daysSinceCreated: Math.floor(
+            (new Date().getTime() - key.createdAt.getTime()) / (1000 * 60 * 60 * 24)
+          ),
+          daysSinceLastUsed: key.lastUsedAt ? Math.floor(
+            (new Date().getTime() - key.lastUsedAt.getTime()) / (1000 * 60 * 60 * 24)
+          ) : null,
+        })),
+        period: {
+          days: Number(days),
+          startDate,
+          endDate: new Date(),
+        }
+      },
+    };
+
+    res.json(response);
+  })
+);
+
 export default router;

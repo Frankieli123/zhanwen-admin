@@ -30,7 +30,9 @@ API KEY: zw_live_ed2257f4b4184d0f6960c6d0a006d26e
 
 ## 📡 接口列表
 
-### 1. 获取平台配置
+### 📋 配置管理接口
+
+#### 1. 获取平台配置
 
 获取指定平台的应用配置信息。
 
@@ -86,7 +88,9 @@ curl -X GET "https://zwam.vryo.de/api/public/configs/web" \
 }
 ```
 
-### 2. 获取活跃 AI 模型
+### 🤖 AI 模型管理接口
+
+#### 2. 获取活跃 AI 模型
 
 获取当前启用的所有 AI 模型配置。
 
@@ -172,7 +176,65 @@ curl -X GET "https://zwam.vryo.de/api/public/ai-models/primary" \
 }
 ```
 
-### 4. 获取活跃提示词模板
+#### 4. 获取 AI 提供商列表
+
+获取当前启用的所有 AI 提供商信息。
+
+**接口地址**
+```
+GET /public/ai-models/providers
+```
+
+**请求示例**
+```bash
+curl -X GET "https://zwam.vryo.de/api/public/ai-models/providers" \
+  -H "X-API-Key: zw_live_ed2257f4b4184d0f6960c6d0a006d26e" \
+  -H "Content-Type: application/json"
+```
+
+**响应示例**
+```json
+{
+  "success": true,
+  "message": "获取AI提供商列表成功",
+  "data": [
+    {
+      "id": 1,
+      "name": "openai",
+      "displayName": "OpenAI",
+      "baseUrl": "https://api.openai.com/v1",
+      "description": "OpenAI官方API",
+      "supportedModels": ["gpt-4", "gpt-3.5-turbo"]
+    }
+  ]
+}
+```
+
+#### 5. 根据类型获取 AI 模型
+
+根据模型类型获取对应的 AI 模型列表。
+
+**接口地址**
+```
+GET /public/ai-models/by-type/{type}
+```
+
+**路径参数**
+- `type` (string, 必需): 模型类型
+  - `chat`: 对话模型
+  - `completion`: 补全模型
+  - `embedding`: 嵌入模型
+
+**请求示例**
+```bash
+curl -X GET "https://zwam.vryo.de/api/public/ai-models/by-type/chat" \
+  -H "X-API-Key: zw_live_ed2257f4b4184d0f6960c6d0a006d26e" \
+  -H "Content-Type: application/json"
+```
+
+### 💡 提示词管理接口
+
+#### 6. 获取活跃提示词模板
 
 获取当前启用的提示词模板。
 
@@ -209,6 +271,87 @@ curl -X GET "https://zwam.vryo.de/api/public/prompts/active?type=divination" \
     }
   ]
 }
+```
+
+#### 7. 根据名称获取提示词模板
+
+根据模板名称获取特定的提示词模板。
+
+**接口地址**
+```
+GET /public/prompts/by-name/{name}
+```
+
+**路径参数**
+- `name` (string, 必需): 模板名称
+
+**请求示例**
+```bash
+curl -X GET "https://zwam.vryo.de/api/public/prompts/by-name/占卜解读模板" \
+  -H "X-API-Key: zw_live_ed2257f4b4184d0f6960c6d0a006d26e" \
+  -H "Content-Type: application/json"
+```
+
+### 🔮 卦象数据接口
+
+#### 8. 获取所有卦象数据
+
+获取完整的64卦数据。
+
+**接口地址**
+```
+GET /public/hexagrams/all
+```
+
+**请求示例**
+```bash
+curl -X GET "https://zwam.vryo.de/api/public/hexagrams/all" \
+  -H "X-API-Key: zw_live_ed2257f4b4184d0f6960c6d0a006d26e" \
+  -H "Content-Type: application/json"
+```
+
+**响应示例**
+```json
+{
+  "success": true,
+  "message": "获取卦象数据成功",
+  "data": [
+    {
+      "id": 1,
+      "number": 1,
+      "name": "Qian",
+      "chineseName": "乾",
+      "symbol": "☰",
+      "upperTrigram": "乾",
+      "lowerTrigram": "乾",
+      "description": "天行健，君子以自强不息",
+      "interpretation": "乾卦代表天，象征刚健、积极向上...",
+      "keywords": ["刚健", "领导", "创造"],
+      "element": "金",
+      "season": "秋",
+      "direction": "西北"
+    }
+  ]
+}
+```
+
+#### 9. 根据编号获取卦象详情
+
+根据卦象编号（1-64）获取详细信息。
+
+**接口地址**
+```
+GET /public/hexagrams/{number}
+```
+
+**路径参数**
+- `number` (integer, 必需): 卦象编号（1-64）
+
+**请求示例**
+```bash
+curl -X GET "https://zwam.vryo.de/api/public/hexagrams/1" \
+  -H "X-API-Key: zw_live_ed2257f4b4184d0f6960c6d0a006d26e" \
+  -H "Content-Type: application/json"
 ```
 
 ## 🚨 错误响应

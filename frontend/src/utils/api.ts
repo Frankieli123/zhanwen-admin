@@ -451,6 +451,9 @@ export const apiKeysAPI = {
 
   // 批量删除API Key
   batchDeleteApiKeys: (ids: number[]) => api.delete('/api-keys/batch', { data: { ids } }),
+
+  // 获取API Key使用统计
+  getApiKeyUsageStats: (days?: number) => api.get('/api-keys/usage-stats', { params: { days } }),
 };
 
 // 导出 TokenManager 供其他模块使用

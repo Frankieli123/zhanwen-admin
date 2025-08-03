@@ -58,21 +58,17 @@ export const authenticateApiKey = async (
       return;
     }
 
-    // 更新使用统计
-    await prisma.apiKey.update({
-      where: { id: apiKeyRecord.id },
-      data: {
-        lastUsedAt: new Date(),
-        usageCount: { increment: 1 }
-      }
-    });
-
     // 将应用信息添加到请求对象
     req.apiKey = {
       id: apiKeyRecord.id,
       name: apiKeyRecord.name,
       permissions: apiKeyRecord.permissions
     };
+
+    // 异步更新使用统计（不阻塞请求）
+    updateApiKeyUsage(apiKeyRecord.id).catch((error: any) => {
+      console.error('更新API Key使用统计失败:', error);
+    });
 
     next();
   } catch (error) {
@@ -84,6 +80,24 @@ export const authenticateApiKey = async (
     });
   }
 };
+
+/**
+ * 异步更新 API Key 使用统计
+ */
+async function updateApiKeyUsage(apiKeyId: number): Promise<void> {
+  try {
+    await prisma.apiKey.update({
+      where: { id: apiKeyId },
+      data: {
+        lastUsedAt: new Date(),
+        usageCount: { increment: 1 }
+      }
+    });
+  } catch (error) {
+    console.error('更新API Key使用统计失败:', error);
+    // 不抛出错误，避免影响主要业务流程
+  }
+}
 
 /**
  * 检查 API 权限

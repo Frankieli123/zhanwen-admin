@@ -10,10 +10,13 @@ import {
   CreateButton,
 } from "@refinedev/antd";
 import { Table, Space, Button, Tag, Tooltip, Modal, message } from "antd";
-import { EyeOutlined, KeyOutlined, ReloadOutlined } from "@ant-design/icons";
+import { EyeOutlined, KeyOutlined, ReloadOutlined, BarChartOutlined } from "@ant-design/icons";
+import { useNavigate } from "react-router-dom";
 import { apiKeysAPI } from "../../utils/api";
 
 export const ApiKeyList: React.FC = () => {
+  const navigate = useNavigate();
+
   const { tableProps, searchFormProps, sorters, filters } = useTable({
     syncWithLocation: true,
     resource: "api-keys",
@@ -166,7 +169,16 @@ export const ApiKeyList: React.FC = () => {
   return (
     <List
       breadcrumb={false}
-      headerButtons={() => []}
+      headerButtons={() => [
+        <Button
+          key="stats"
+          type="primary"
+          icon={<BarChartOutlined />}
+          onClick={() => navigate('/api-keys/stats')}
+        >
+          使用统计
+        </Button>
+      ]}
     >
       <Table
         {...tableProps}
