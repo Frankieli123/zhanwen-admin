@@ -13,6 +13,7 @@ import { errorHandler, notFoundHandler } from '@/middleware/error.middleware';
 import { logger } from '@/utils/logger';
 import apiRoutes from '@/routes/api.routes';
 import authRoutes from '@/routes/auth.routes';
+import publicRoutes from '@/routes/public.routes';
 
 // 加载环境变量
 dotenv.config();
@@ -132,7 +133,8 @@ if (process.env['NODE_ENV'] === 'development') {
 
 // 路由
 app.use('/auth', authRoutes);
-app.use('/api', apiRoutes);
+app.use('/api', publicRoutes); // 公开API路由（使用API Key认证）- 必须在前面
+app.use('/api', apiRoutes);     // 管理API路由（使用JWT认证）
 
 // 静态文件服务 - 服务前端构建文件
 const frontendDistPath = path.join(__dirname, '../../frontend/dist');
