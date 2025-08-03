@@ -14,10 +14,100 @@ const apiClient: AxiosInstance = axios.create({
   },
 });
 
+// Token 安全处理工具
+const TokenManager = {
+  // 获取 token（带过期检查）
+  getToken: () => {
+    try {
+      const token = localStorage.getItem('auth_token');
+      const tokenExpiry = localStorage.getItem('auth_token_expiry');
+
+      if (!token || !tokenExpiry) {
+        return null;
+      }
+
+      // 检查 token 是否过期
+      if (Date.now() > parseInt(tokenExpiry)) {
+        TokenManager.clearToken();
+        return null;
+      }
+
+      return token;
+    } catch (error) {
+      console.error('获取 token 失败:', error);
+      return null;
+    }
+  },
+
+  // 设置 token（带过期时间）
+  setToken: (token: string, expiresIn: string = '7d') => {
+    try {
+      localStorage.setItem('auth_token', token);
+
+      // 解析过期时间
+      let expiryTime: number;
+      if (expiresIn.endsWith('d')) {
+        const days = parseInt(expiresIn);
+        expiryTime = Date.now() + (days * 24 * 60 * 60 * 1000);
+      } else if (expiresIn.endsWith('h')) {
+        const hours = parseInt(expiresIn);
+        expiryTime = Date.now() + (hours * 60 * 60 * 1000);
+      } else if (expiresIn.endsWith('m')) {
+        const minutes = parseInt(expiresIn);
+        expiryTime = Date.now() + (minutes * 60 * 1000);
+      } else {
+        // 默认7天
+        expiryTime = Date.now() + (7 * 24 * 60 * 60 * 1000);
+      }
+
+      localStorage.setItem('auth_token_expiry', expiryTime.toString());
+    } catch (error) {
+      console.error('设置 token 失败:', error);
+    }
+  },
+
+  // 清除 token
+  clearToken: () => {
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('auth_token_expiry');
+    localStorage.removeItem('user_info');
+  },
+
+  // 检查 token 是否即将过期（30分钟内）
+  willExpireSoon: () => {
+    try {
+      const tokenExpiry = localStorage.getItem('auth_token_expiry');
+      if (!tokenExpiry) return false;
+
+      const expiryTime = parseInt(tokenExpiry);
+      const thirtyMinutes = 30 * 60 * 1000;
+
+      return (expiryTime - Date.now()) < thirtyMinutes;
+    } catch (error) {
+      console.error('检查 token 过期时间失败:', error);
+      return false;
+    }
+  },
+
+  // 获取 token 剩余时间（毫秒）
+  getTimeToExpiry: () => {
+    try {
+      const tokenExpiry = localStorage.getItem('auth_token_expiry');
+      if (!tokenExpiry) return 0;
+
+      const expiryTime = parseInt(tokenExpiry);
+      return Math.max(0, expiryTime - Date.now());
+    } catch (error) {
+      console.error('获取 token 剩余时间失败:', error);
+      return 0;
+    }
+  }
+};
+
 // 请求拦截器 - 添加认证token
 apiClient.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('auth_token');
+    const token = TokenManager.getToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -33,13 +123,41 @@ apiClient.interceptors.response.use(
   (response: AxiosResponse) => {
     return response;
   },
-  (error) => {
-    if (error.response?.status === 401) {
-      // Token过期或无效，清除本地存储并跳转到登录页
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('user_info');
-      window.location.href = '/login';
+  async (error) => {
+    const originalRequest = error.config;
+
+    // 处理401错误（token过期或无效）
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+
+      try {
+        // 尝试刷新 token
+        const refreshResponse = await authClient.post('/auth/refresh');
+
+        if (refreshResponse.data.success) {
+          const newToken = refreshResponse.data.data.token;
+          const expiresIn = refreshResponse.data.data.expiresIn;
+
+          // 更新 token
+          TokenManager.setToken(newToken, expiresIn);
+
+          // 重试原请求
+          originalRequest.headers.Authorization = `Bearer ${newToken}`;
+          return apiClient.request(originalRequest);
+        }
+      } catch (refreshError) {
+        console.warn('Token 刷新失败:', refreshError);
+      }
+
+      // 刷新失败，清除 token 并跳转登录
+      TokenManager.clearToken();
+
+      // 跳转到登录页
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login';
+      }
     }
+
     return Promise.reject(error);
   }
 );
@@ -310,5 +428,8 @@ export const analyticsAPI = {
   // 获取卦象统计
   getHexagramStatistics: (params?: any) => api.get('/analytics/hexagrams', { params }),
 };
+
+// 导出 TokenManager 供其他模块使用
+export { TokenManager };
 
 export default apiClient;

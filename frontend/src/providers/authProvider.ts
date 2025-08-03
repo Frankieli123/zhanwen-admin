@@ -1,5 +1,5 @@
 import { AuthProvider } from "@refinedev/core";
-import { authAPI } from "../utils/api";
+import { authAPI, TokenManager } from "../utils/api";
 
 export const authProvider: AuthProvider = {
   // 登录 - 按照Refine标准支持email和username
@@ -40,10 +40,10 @@ export const authProvider: AuthProvider = {
         console.log('登录响应:', response);
 
         if (response.success && response.data) {
-          const { token, user } = response.data;
+          const { token, user, expiresIn } = response.data;
 
-          // 存储token和用户信息
-          localStorage.setItem("auth_token", token);
+          // 使用 TokenManager 安全存储 token
+          TokenManager.setToken(token, expiresIn || '7d');
           localStorage.setItem("user_info", JSON.stringify(user));
 
           const authResult = {
@@ -96,8 +96,8 @@ export const authProvider: AuthProvider = {
       console.warn("登出API调用失败:", error);
     }
     
-    localStorage.removeItem("auth_token");
-    localStorage.removeItem("user_info");
+    // 使用 TokenManager 清除 token
+    TokenManager.clearToken();
     
     return {
       success: true,
@@ -107,8 +107,8 @@ export const authProvider: AuthProvider = {
 
   // 检查认证状态
   check: async () => {
-    const token = localStorage.getItem("auth_token");
-    
+    const token = TokenManager.getToken();
+
     if (!token) {
       return {
         authenticated: false,

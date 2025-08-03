@@ -1,3 +1,4 @@
+import React from "react";
 import { Refine, Authenticated } from "@refinedev/core";
 import {
   ErrorComponent,
@@ -17,11 +18,12 @@ import routerBindings, {
 import { App as AntdApp, ConfigProvider, Form, Input, Button, Checkbox } from "antd";
 import { BrowserRouter, Outlet, Route, Routes } from "react-router-dom";
 import zhCN from "antd/locale/zh_CN";
-import { useEffect } from "react";
+
 
 import { dataProvider } from "./providers/dataProvider";
 import { authProvider } from "./providers/authProvider";
 import { notificationProvider } from "./providers/notificationProvider";
+import { tokenRefreshManager } from "./utils/tokenRefresh";
 
 // 页面组件
 import { Dashboard } from "./pages/dashboard";
@@ -53,6 +55,16 @@ import {
 } from "@ant-design/icons";
 
 function App() {
+  // 启动 token 自动刷新管理器
+  React.useEffect(() => {
+    tokenRefreshManager.start();
+
+    // 组件卸载时停止
+    return () => {
+      tokenRefreshManager.stop();
+    };
+  }, []);
+
   return (
     <BrowserRouter>
       <ConfigProvider locale={zhCN}>
