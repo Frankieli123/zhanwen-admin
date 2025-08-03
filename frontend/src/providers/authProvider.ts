@@ -20,8 +20,13 @@ export const authProvider: AuthProvider = {
       console.log('登录尝试:', { loginField, password: '***' });
 
       try {
-        // 直接使用fetch调用API，避免axios的复杂性
-        const fetchResponse = await fetch('/auth/login', {
+        // 获取API基础URL
+        const API_URL = import.meta.env.VITE_API_URL || (
+          import.meta.env.MODE === 'production' ? '/api' : 'http://localhost:3001/api'
+        );
+
+        // 直接使用fetch调用API
+        const fetchResponse = await fetch(`${API_URL}/auth/login`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -132,10 +137,18 @@ export const authProvider: AuthProvider = {
         redirectTo: "/login",
       };
     } catch (error) {
-      // 网络错误或其他错误，暂时认为已认证
-      // 避免因为网络问题导致用户被强制登出
+      console.error('认证检查失败:', error);
+      // 网络错误或其他错误，清除token并要求重新登录
+      localStorage.removeItem("auth_token");
+      localStorage.removeItem("user_info");
+
       return {
-        authenticated: true,
+        authenticated: false,
+        redirectTo: "/login",
+        error: {
+          message: "认证检查失败，请重新登录",
+          name: "AuthCheckError",
+        },
       };
     }
   },
