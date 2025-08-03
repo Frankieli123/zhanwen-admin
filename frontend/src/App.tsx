@@ -62,6 +62,7 @@ function App() {
                 authProvider={authProvider}
                 notificationProvider={notificationProvider}
                 routerProvider={routerBindings}
+
                 resources={[
                   {
                     name: "dashboard",
@@ -125,6 +126,7 @@ function App() {
                   },
                 ]}
                 options={{
+                  disableTelemetry: true,
                   syncWithLocation: true,
                   warnWhenUnsavedChanges: true,
                   useNewQueryKeys: true,
