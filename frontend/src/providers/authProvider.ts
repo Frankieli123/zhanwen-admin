@@ -20,13 +20,13 @@ export const authProvider: AuthProvider = {
       console.log('登录尝试:', { loginField, password: '***' });
 
       try {
-        // 获取API基础URL
-        const API_URL = import.meta.env.VITE_API_URL || (
-          import.meta.env.MODE === 'production' ? '/api' : 'http://localhost:3001/api'
+        // 获取API基础URL - 认证接口在 /auth 路径下，不在 /api 下
+        const API_BASE = import.meta.env.VITE_API_URL || (
+          import.meta.env.MODE === 'production' ? '' : 'http://localhost:3001'
         );
 
         // 直接使用fetch调用API
-        const fetchResponse = await fetch(`${API_URL}/auth/login`, {
+        const fetchResponse = await fetch(`${API_BASE}/auth/login`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

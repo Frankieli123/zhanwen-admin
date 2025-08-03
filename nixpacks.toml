@@ -1,8 +1,20 @@
 providers = ["node"]
 
 [variables]
+# 基础环境配置
 NODE_ENV = "production"
-PORT = "3001"
+PORT = "80"
+
+# 前端构建环境变量
+VITE_API_URL = "/api"
+VITE_APP_TITLE = "占卜应用管理后台"
+
+# 后端配置
+JWT_EXPIRES_IN = "7d"
+LOG_LEVEL = "info"
+CORS_ORIGIN = "https://zwam.vryo.de"
+
+# 注意：敏感信息如 JWT_SECRET, DATABASE_URL 需要在 Coolify 界面中设置
 
 [phases.setup]
 nixPkgs = ["nodejs-18_x", "npm-9_x"]

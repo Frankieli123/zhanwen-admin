@@ -1,8 +1,8 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 
 // API基础配置 - 生产环境使用相对路径，开发环境使用完整URL
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (
-  import.meta.env.MODE === 'production' ? '' : 'http://localhost:3001'
+const API_BASE_URL = import.meta.env.VITE_API_URL || (
+  import.meta.env.MODE === 'production' ? '/api' : 'http://localhost:3001/api'
 );
 
 // 创建axios实例
@@ -100,24 +100,61 @@ export const api = {
   },
 };
 
-// 认证相关API
+// 认证相关API - 认证接口在根路径 /auth 下，不在 /api 下
+const AUTH_BASE_URL = import.meta.env.VITE_API_URL ?
+  import.meta.env.VITE_API_URL.replace('/api', '') :
+  (import.meta.env.MODE === 'production' ? '' : 'http://localhost:3001');
+
+const authClient = axios.create({
+  baseURL: AUTH_BASE_URL,
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// 为认证客户端添加token拦截器
+authClient.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
 export const authAPI = {
   // 登录
-  login: (credentials: { username: string; password: string; remember?: boolean }) =>
-    api.post('/auth/login', credentials),
+  login: async (credentials: { username: string; password: string; remember?: boolean }) => {
+    const response = await authClient.post('/auth/login', credentials);
+    return response.data;
+  },
 
   // 登出
-  logout: () => api.post('/auth/logout'),
+  logout: async () => {
+    const response = await authClient.post('/auth/logout');
+    return response.data;
+  },
 
   // 获取当前用户信息
-  getCurrentUser: () => api.get('/auth/me'),
+  getCurrentUser: async () => {
+    const response = await authClient.get('/auth/me');
+    return response.data;
+  },
 
   // 修改密码
-  changePassword: (data: { currentPassword: string; newPassword: string; confirmPassword: string }) =>
-    api.put('/auth/change-password', data),
+  changePassword: async (data: { currentPassword: string; newPassword: string; confirmPassword: string }) => {
+    const response = await authClient.put('/auth/change-password', data);
+    return response.data;
+  },
 
   // 刷新Token
-  refreshToken: () => api.post('/auth/refresh'),
+  refreshToken: async () => {
+    const response = await authClient.post('/auth/refresh');
+    return response.data;
+  },
 };
 
 // AI模型相关API
