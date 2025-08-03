@@ -117,28 +117,29 @@ router.get(
           }
         }
       },
-      select: {
-        id: true,
-        name: true,
-        displayName: true,
-        modelType: true,
-        parameters: true,
-        role: true,
-        priority: true,
-        contextWindow: true,
-        provider: true,
-        // 不返回敏感信息如 apiKeyEncrypted
-      },
       orderBy: [
         { role: 'asc' },
         { priority: 'asc' }
       ]
     });
 
+    // 过滤返回的字段，不包含敏感信息
+    const filteredModels = activeModels.map(model => ({
+      id: model.id,
+      name: model.name,
+      displayName: model.displayName,
+      modelType: model.modelType,
+      parameters: model.parameters,
+      role: model.role,
+      priority: model.priority,
+      contextWindow: model.contextWindow,
+      provider: model.provider,
+    }));
+
     const response: ApiResponse = {
       success: true,
       message: '获取活跃AI模型成功',
-      data: activeModels,
+      data: filteredModels,
     };
 
     res.json(response);
@@ -177,17 +178,6 @@ router.get(
             baseUrl: true,
           }
         }
-      },
-      select: {
-        id: true,
-        name: true,
-        displayName: true,
-        modelType: true,
-        parameters: true,
-        role: true,
-        priority: true,
-        contextWindow: true,
-        provider: true,
       }
     });
 
@@ -200,10 +190,23 @@ router.get(
       return;
     }
 
+    // 过滤返回的字段，不包含敏感信息
+    const filteredPrimaryModel = {
+      id: primaryModel.id,
+      name: primaryModel.name,
+      displayName: primaryModel.displayName,
+      modelType: primaryModel.modelType,
+      parameters: primaryModel.parameters,
+      role: primaryModel.role,
+      priority: primaryModel.priority,
+      contextWindow: primaryModel.contextWindow,
+      provider: primaryModel.provider,
+    };
+
     const response: ApiResponse = {
       success: true,
       message: '获取主要AI模型成功',
-      data: primaryModel,
+      data: filteredPrimaryModel,
     };
 
     res.json(response);
