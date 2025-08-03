@@ -41,6 +41,9 @@ import { ConfigList, ConfigCreate, ConfigEdit, ConfigShow } from "./pages/config
 import { HexagramList } from "./pages/hexagrams/list";
 import { HexagramShow } from "./pages/hexagrams/show";
 
+// API Key 管理页面
+import { ApiKeyList, ApiKeyCreate, ApiKeyEdit, ApiKeyShow } from "./pages/apiKeys";
+
 // 数据分析页面
 import { Analytics } from "./pages/analytics";
 
@@ -52,6 +55,7 @@ import {
   SettingOutlined,
   BarChartOutlined,
   DatabaseOutlined,
+  KeyOutlined,
 } from "@ant-design/icons";
 
 function App() {
@@ -129,6 +133,17 @@ function App() {
                     },
                   },
                   {
+                    name: "api-keys",
+                    list: "/api-keys",
+                    create: "/api-keys/create",
+                    edit: "/api-keys/edit/:id",
+                    show: "/api-keys/show/:id",
+                    meta: {
+                      label: "API Key 管理",
+                      icon: <KeyOutlined />,
+                    },
+                  },
+                  {
                     name: "analytics",
                     list: "/analytics",
                     meta: {
@@ -197,6 +212,14 @@ function App() {
                     <Route path="/hexagrams">
                       <Route index element={<HexagramList />} />
                       <Route path="show/:id" element={<HexagramShow />} />
+                    </Route>
+
+                    {/* API Key 管理路由 */}
+                    <Route path="/api-keys">
+                      <Route index element={<ApiKeyList />} />
+                      <Route path="create" element={<ApiKeyCreate />} />
+                      <Route path="edit/:id" element={<ApiKeyEdit />} />
+                      <Route path="show/:id" element={<ApiKeyShow />} />
                     </Route>
 
                     {/* 数据分析路由 */}

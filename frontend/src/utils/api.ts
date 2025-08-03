@@ -429,6 +429,30 @@ export const analyticsAPI = {
   getHexagramStatistics: (params?: any) => api.get('/analytics/hexagrams', { params }),
 };
 
+// API Key 管理API
+export const apiKeysAPI = {
+  // 获取API Key列表
+  getApiKeys: (params?: any) => api.getPaginated('/api-keys', params),
+
+  // 获取API Key详情
+  getApiKey: (id: number) => api.get(`/api-keys/${id}`),
+
+  // 创建API Key
+  createApiKey: (data: any) => api.post('/api-keys', data),
+
+  // 更新API Key
+  updateApiKey: (id: number, data: any) => api.put(`/api-keys/${id}`, data),
+
+  // 删除API Key
+  deleteApiKey: (id: number) => api.delete(`/api-keys/${id}`),
+
+  // 重新生成API Key
+  regenerateApiKey: (id: number) => api.post(`/api-keys/${id}/regenerate`),
+
+  // 批量删除API Key
+  batchDeleteApiKeys: (ids: number[]) => api.delete('/api-keys/batch', { data: { ids } }),
+};
+
 // 导出 TokenManager 供其他模块使用
 export { TokenManager };
 
