@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { AIModelService } from '@/services/ai-model.service';
 import { AIProviderService } from '@/services/ai-provider.service';
+import { ModelFetcherService } from '@/services/model-fetcher.service';
 import { asyncHandler } from '@/middleware/error.middleware';
 import { ApiResponse, PaginationQuery } from '@/types/api.types';
 
@@ -410,12 +411,204 @@ export const getActiveAIProviders = asyncHandler(async (req: Request, res: Respo
 export const getAIProviderById = asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const id = parseInt(req.params['id'] || '0');
   const provider = await aiProviderService.getProviderById(id);
-  
+
   const response: ApiResponse = {
     success: true,
     message: '获取AI提供商详情成功',
     data: provider,
   };
-  
+
+  res.json(response);
+});
+
+/**
+ * @swagger
+ * /api/ai-models/active:
+ *   get:
+ *     summary: 获取当前活跃的AI模型配置
+ *     tags: [AI Models]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: 获取成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     primary:
+ *                       $ref: '#/components/schemas/AIModel'
+ *                     backups:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/AIModel'
+ *                     hasValidConfig:
+ *                       type: boolean
+ */
+export const getActiveAIConfiguration = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+  const configuration = await aiModelService.getAIConfiguration();
+
+  const response: ApiResponse = {
+    success: true,
+    message: '获取活跃AI配置成功',
+    data: configuration,
+  };
+
+  res.json(response);
+});
+
+/**
+ * @swagger
+ * /api/ai-models/primary:
+ *   get:
+ *     summary: 获取当前主模型
+ *     tags: [AI Models]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: 获取成功
+ *       404:
+ *         description: 未找到活跃的主模型
+ */
+export const getPrimaryAIModel = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+  const primaryModel = await aiModelService.getActiveModel();
+
+  if (!primaryModel) {
+    const response: ApiResponse = {
+      success: false,
+      message: '未找到活跃的主模型',
+      data: null,
+    };
+    res.status(404).json(response);
+    return;
+  }
+
+  const response: ApiResponse = {
+    success: true,
+    message: '获取主模型成功',
+    data: primaryModel,
+  };
+
+  res.json(response);
+});
+
+/**
+ * @swagger
+ * /api/ai-models/fetch-models:
+ *   post:
+ *     summary: 拉取指定供应商的模型列表
+ *     tags: [AI Models]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - provider
+ *               - apiKey
+ *             properties:
+ *               provider:
+ *                 type: string
+ *                 description: 供应商名称
+ *               apiKey:
+ *                 type: string
+ *                 description: API密钥
+ *               apiUrl:
+ *                 type: string
+ *                 description: 自定义API地址
+ *     responses:
+ *       200:
+ *         description: 拉取成功
+ */
+export const fetchModels = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+  const { provider, apiKey, apiUrl } = req.body;
+
+  if (!provider || !apiKey) {
+    const response: ApiResponse = {
+      success: false,
+      message: '供应商和API密钥不能为空',
+    };
+    res.status(400).json(response);
+    return;
+  }
+
+  const models = await ModelFetcherService.fetchModels({
+    provider,
+    apiKey,
+    apiUrl,
+  });
+
+  const response: ApiResponse = {
+    success: true,
+    message: '拉取模型列表成功',
+    data: models,
+  };
+
+  res.json(response);
+});
+
+/**
+ * @swagger
+ * /api/ai-models/test-connection:
+ *   post:
+ *     summary: 测试API连接
+ *     tags: [AI Models]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - provider
+ *               - apiKey
+ *             properties:
+ *               provider:
+ *                 type: string
+ *                 description: 供应商名称
+ *               apiKey:
+ *                 type: string
+ *                 description: API密钥
+ *               apiUrl:
+ *                 type: string
+ *                 description: 自定义API地址
+ *     responses:
+ *       200:
+ *         description: 测试结果
+ */
+export const testAPIConnection = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+  const { provider, apiKey, apiUrl } = req.body;
+
+  if (!provider || !apiKey) {
+    const response: ApiResponse = {
+      success: false,
+      message: '供应商和API密钥不能为空',
+    };
+    res.status(400).json(response);
+    return;
+  }
+
+  const isConnected = await ModelFetcherService.testConnection({
+    provider,
+    apiKey,
+    apiUrl,
+  });
+
+  const response: ApiResponse = {
+    success: isConnected,
+    message: isConnected ? 'API连接测试成功' : 'API连接测试失败',
+    data: { connected: isConnected },
+  };
+
   res.json(response);
 });

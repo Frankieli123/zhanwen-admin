@@ -11,6 +11,10 @@ import {
   getAIProviders,
   getActiveAIProviders,
   getAIProviderById,
+  getActiveAIConfiguration,
+  getPrimaryAIModel,
+  fetchModels,
+  testAPIConnection,
 } from '@/controllers/ai-models.controller';
 import { authenticateToken, requirePermission } from '@/middleware/auth.middleware';
 import { validate } from '@/middleware/validation.middleware';
@@ -29,6 +33,20 @@ router.get(
   requirePermission('ai_models:read'),
   validate(paginationValidation),
   getAIModels
+);
+
+// 获取当前活跃AI配置
+router.get(
+  '/ai-models/active',
+  requirePermission('ai_models:read'),
+  getActiveAIConfiguration
+);
+
+// 获取当前主模型
+router.get(
+  '/ai-models/primary',
+  requirePermission('ai_models:read'),
+  getPrimaryAIModel
 );
 
 router.get(
@@ -130,6 +148,34 @@ router.get(
     }),
   }),
   getAIProviderById
+);
+
+// 拉取模型列表
+router.post(
+  '/ai-models/fetch-models',
+  requirePermission('ai_models:create'),
+  validate({
+    body: Joi.object({
+      provider: Joi.string().required(),
+      apiKey: Joi.string().required(),
+      apiUrl: Joi.string().uri().optional(),
+    }),
+  }),
+  fetchModels
+);
+
+// 测试API连接
+router.post(
+  '/ai-models/test-connection',
+  requirePermission('ai_models:create'),
+  validate({
+    body: Joi.object({
+      provider: Joi.string().required(),
+      apiKey: Joi.string().required(),
+      apiUrl: Joi.string().uri().optional(),
+    }),
+  }),
+  testAPIConnection
 );
 
 export default router;

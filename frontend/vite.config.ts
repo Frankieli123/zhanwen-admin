@@ -6,9 +6,21 @@ import path from 'path'
 export default defineConfig({
   plugins: [react()],
   server: {
-    port: 5008,
+    port: 5173,
     host: true,
     strictPort: true,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/auth': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
   },
   resolve: {
     alias: {

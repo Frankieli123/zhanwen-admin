@@ -2,7 +2,7 @@ import { AuthProvider } from "@refinedev/core";
 import axios from "axios";
 
 const API_URL = import.meta.env.VITE_API_URL || (
-  import.meta.env.MODE === 'production' ? '' : 'http://localhost:30001'
+  import.meta.env.MODE === 'production' ? '' : 'http://localhost:3001'
 );
 
 export const authProvider: AuthProvider = {

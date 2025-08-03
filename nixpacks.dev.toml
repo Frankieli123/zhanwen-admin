@@ -1,0 +1,23 @@
+providers = ["node"]
+
+[variables]
+NODE_ENV = "development"
+PORT = "3001"
+FRONTEND_PORT = "5173"
+
+[phases.setup]
+nixPkgs = ["nodejs-18_x", "npm-9_x"]
+
+[phases.install]
+cmds = [
+  "npm install",
+  "cd backend && npm install",
+  "cd frontend && npm install"
+]
+
+[phases.build]
+# 开发模式不需要构建，直接运行源码
+cmds = []
+
+[start]
+cmd = "./start-dev.sh"

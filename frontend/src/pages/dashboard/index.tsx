@@ -43,17 +43,50 @@ export const Dashboard: React.FC = () => {
   const loadDashboardData = async () => {
     try {
       setLoading(true);
-      
-      // 获取基础统计数据
-      const dbTestResponse = await api.get('/api/test-db');
-      
-      if (dbTestResponse.success) {
-        const counts = dbTestResponse.data.counts;
+
+      // 获取基础统计数据 - 使用现有的分析API
+      try {
+        const analyticsResponse = await api.get('/api/analytics/overview');
+        if (analyticsResponse.success) {
+          const data = analyticsResponse.data;
+          setStats({
+            totalUsers: data.totalUsers || 0,
+            totalApiCalls: data.totalApiCalls || Math.floor(Math.random() * 10000), // 模拟数据
+            totalCost: data.totalCost || Math.floor(Math.random() * 1000), // 模拟数据
+            activeModels: data.activeModels || 0,
+            recentActivity: data.recentActivity || [
+              {
+                id: 1,
+                action: "创建AI模型",
+                resourceType: "ai_model",
+                user: "admin",
+                timestamp: new Date().toISOString(),
+              },
+              {
+                id: 2,
+                action: "更新提示词模板",
+                resourceType: "prompt_template",
+                user: "admin",
+                timestamp: new Date(Date.now() - 3600000).toISOString(),
+              },
+              {
+                id: 3,
+                action: "修改应用配置",
+                resourceType: "app_config",
+                user: "admin",
+                timestamp: new Date(Date.now() - 7200000).toISOString(),
+              },
+            ],
+          });
+        }
+      } catch (analyticsError) {
+        console.warn("分析API暂不可用，使用模拟数据:", analyticsError);
+        // 如果分析API不可用，使用模拟数据
         setStats({
-          totalUsers: counts.users || 0,
-          totalApiCalls: Math.floor(Math.random() * 10000), // 模拟数据
-          totalCost: Math.floor(Math.random() * 1000), // 模拟数据
-          activeModels: counts.aiModels || 0,
+          totalUsers: 1,
+          totalApiCalls: Math.floor(Math.random() * 10000),
+          totalCost: Math.floor(Math.random() * 1000),
+          activeModels: 0,
           recentActivity: [
             {
               id: 1,
@@ -125,7 +158,7 @@ export const Dashboard: React.FC = () => {
   return (
     <div style={{ padding: "24px" }}>
       <Space direction="vertical" size="large" style={{ width: "100%" }}>
-        <div>
+        <div style={{ textAlign: "center" }}>
           <Title level={2}>仪表盘</Title>
           <Text type="secondary">占卜应用管理后台概览</Text>
         </div>

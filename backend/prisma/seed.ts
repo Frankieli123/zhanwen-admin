@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { encrypt } from '../src/utils/encryption';
 
 const prisma = new PrismaClient();
 
@@ -74,18 +75,37 @@ async function main() {
   });
 
   if (deepseekProvider) {
+    // 从环境变量或配置中获取API密钥
+    const deepseekApiKey = process.env.DEEPSEEK_API_KEY || 'sk-052946e9f1cd46fcb5af103c6033220c';
+    const encryptedApiKey = encrypt(deepseekApiKey);
+
     await prisma.aiModel.upsert({
-      where: { 
+      where: {
         providerId_name: {
           providerId: deepseekProvider.id,
           name: 'deepseek-chat'
         }
       },
-      update: {},
+      update: {
+        // 更新API密钥和参数
+        apiKeyEncrypted: encryptedApiKey,
+        parameters: {
+          temperature: 0.7,
+          max_tokens: 3000,
+          top_p: 1.0,
+          frequency_penalty: 0.0,
+          presence_penalty: 0.0,
+          stream: false,
+        },
+        role: 'primary',
+        priority: 1,
+        isActive: true,
+      },
       create: {
         providerId: deepseekProvider.id,
         name: 'deepseek-chat',
         displayName: 'DeepSeek Chat',
+        apiKeyEncrypted: encryptedApiKey,
         modelType: 'chat',
         parameters: {
           temperature: 0.7,
@@ -93,15 +113,16 @@ async function main() {
           top_p: 1.0,
           frequency_penalty: 0.0,
           presence_penalty: 0.0,
+          stream: false,
         },
         role: 'primary',
         priority: 1,
         costPer1kTokens: 0.002,
-        contextWindow: 4000,
+        contextWindow: 32000,
         isActive: true,
       },
     });
-    console.log('✅ 创建AI模型: DeepSeek Chat');
+    console.log('✅ 创建AI模型: DeepSeek Chat (已配置API密钥)');
   }
 
   // 4. 创建默认提示词模板

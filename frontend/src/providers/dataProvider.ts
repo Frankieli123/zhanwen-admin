@@ -207,7 +207,7 @@ export const dataProvider: DataProvider = {
   // 获取API URL（用于某些特殊操作）
   getApiUrl: () => {
     return import.meta.env.VITE_API_BASE_URL || (
-      import.meta.env.MODE === 'production' ? '' : 'http://localhost:30001'
+      import.meta.env.MODE === 'production' ? '' : 'http://localhost:3001'
     );
   },
 

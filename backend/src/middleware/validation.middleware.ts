@@ -73,10 +73,15 @@ export const commonValidations = {
 export const aiModelValidation = {
   create: {
     body: Joi.object({
-      providerId: commonValidations.id,
+      providerId: Joi.alternatives().try(
+        commonValidations.id,
+        Joi.string().valid('custom')
+      ),
       name: commonValidations.name,
-      displayName: commonValidations.name,
+      displayName: commonValidations.name.optional(),
       apiKeyEncrypted: Joi.string().optional(),
+      customApiUrl: Joi.string().uri().optional(),
+      customProviderName: Joi.string().optional(),
       modelType: Joi.string().valid('chat', 'completion', 'embedding').default('chat'),
       parameters: Joi.object({
         temperature: Joi.number().min(0).max(2).default(0.7),
@@ -98,8 +103,15 @@ export const aiModelValidation = {
       id: commonValidations.id,
     }),
     body: Joi.object({
+      providerId: Joi.alternatives().try(
+        commonValidations.id,
+        Joi.string().valid('custom')
+      ).optional(),
+      name: commonValidations.name.optional(),
       displayName: commonValidations.name.optional(),
       apiKeyEncrypted: Joi.string().optional(),
+      customApiUrl: Joi.string().uri().optional(),
+      customProviderName: Joi.string().optional(),
       modelType: Joi.string().valid('chat', 'completion', 'embedding').optional(),
       parameters: Joi.object({
         temperature: Joi.number().min(0).max(2),
@@ -110,7 +122,10 @@ export const aiModelValidation = {
       }).optional(),
       role: Joi.string().valid('primary', 'secondary', 'disabled').optional(),
       priority: Joi.number().integer().min(1).max(1000).optional(),
-      costPer1kTokens: Joi.number().min(0).optional(),
+      costPer1kTokens: Joi.alternatives().try(
+        Joi.number().min(0),
+        Joi.string().pattern(/^\d+(\.\d+)?$/).custom((value) => parseFloat(value))
+      ).optional(),
       contextWindow: Joi.number().integer().min(1).max(32000).optional(),
       isActive: Joi.boolean().optional(),
       metadata: Joi.object().optional(),

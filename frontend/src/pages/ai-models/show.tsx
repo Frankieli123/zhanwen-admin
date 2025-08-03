@@ -1,24 +1,50 @@
 import React from "react";
 import { Show, TextField, BooleanField, NumberField } from "@refinedev/antd";
-import { Typography, Card, Row, Col, Tag, Space, Button, Descriptions } from "antd";
-import { ApiOutlined, EditOutlined } from "@ant-design/icons";
+import { Typography, Card, Row, Col, Tag, Space, Button, Descriptions, message } from "antd";
+import { ApiOutlined } from "@ant-design/icons";
 import { useShow, useNavigation } from "@refinedev/core";
+import { aiModelsAPI } from "../../utils/api";
 
 const { Title } = Typography;
 
 export const AIModelShow: React.FC = () => {
   const { queryResult } = useShow();
   const { edit } = useNavigation();
-  const { data, isLoading } = queryResult;
+  const { data, isLoading, refetch } = queryResult;
+
+  const handleRefresh = async () => {
+    const hide = message.loading('正在刷新数据...', 0);
+    try {
+      await refetch();
+      hide();
+      message.success('数据刷新成功');
+    } catch (error) {
+      hide();
+      console.error('刷新失败:', error);
+      message.error('数据刷新失败');
+    }
+  };
 
   const record = data?.data;
 
   const handleTestConnection = async () => {
+    if (!record) return;
+
     try {
-      // 调用测试连接API
-      console.log("测试模型连接:", record?.id);
+      const response = await aiModelsAPI.testConnection({
+        provider: record.provider?.name || 'custom',
+        apiKey: record.apiKeyEncrypted || '',
+        apiUrl: record.customApiUrl || record.provider?.baseUrl,
+      });
+
+      if (response.success && response.data.connected) {
+        message.success('API连接测试成功');
+      } else {
+        message.error('API连接测试失败');
+      }
     } catch (error) {
       console.error("测试连接失败:", error);
+      message.error('测试连接失败，请检查网络连接');
     }
   };
 
@@ -45,21 +71,26 @@ export const AIModelShow: React.FC = () => {
   return (
     <Show
       isLoading={isLoading}
-      headerButtons={({ defaultButtons }) => (
+      breadcrumb={false}
+      title="AI模型详情"
+      headerButtons={() => (
         <>
-          {defaultButtons}
+          <Button
+            onClick={handleRefresh}
+          >
+            刷新
+          </Button>
+          <Button
+            onClick={() => edit("ai-models", record?.id)}
+          >
+            编辑
+          </Button>
           <Button
             type="primary"
             icon={<ApiOutlined />}
             onClick={handleTestConnection}
           >
             测试连接
-          </Button>
-          <Button
-            icon={<EditOutlined />}
-            onClick={() => edit("ai-models", record?.id)}
-          >
-            编辑
           </Button>
         </>
       )}
@@ -73,9 +104,6 @@ export const AIModelShow: React.FC = () => {
               </Descriptions.Item>
               <Descriptions.Item label="模型名称">
                 <TextField value={record?.name} />
-              </Descriptions.Item>
-              <Descriptions.Item label="显示名称">
-                <TextField value={record?.displayName} />
               </Descriptions.Item>
               <Descriptions.Item label="提供商">
                 <Tag color="green">{record?.provider?.displayName}</Tag>
@@ -162,11 +190,7 @@ export const AIModelShow: React.FC = () => {
         </Row>
       </Card>
 
-      {record?.metadata?.description && (
-        <Card title="描述信息" size="small" style={{ marginTop: 16 }}>
-          <TextField value={record.metadata.description} />
-        </Card>
-      )}
+
 
       <Card title="时间信息" size="small" style={{ marginTop: 16 }}>
         <Descriptions column={2} bordered size="small">

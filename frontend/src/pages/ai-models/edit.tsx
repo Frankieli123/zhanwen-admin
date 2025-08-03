@@ -10,18 +10,53 @@ import {
   Row,
   Col,
   Divider,
+  Button,
+  message,
+  Space,
 } from "antd";
+import { ReloadOutlined, ApiOutlined, SaveOutlined } from "@ant-design/icons";
 import { aiModelsAPI } from "../../utils/api";
 
-const { TextArea } = Input;
-
 export const AIModelEdit: React.FC = () => {
-  const { formProps, saveButtonProps, queryResult } = useForm();
+  const { formProps, saveButtonProps, queryResult, form } = useForm({
+    successNotification: {
+      message: "保存成功",
+      description: "AI模型配置已成功更新",
+      type: "success",
+    },
+    errorNotification: {
+      message: "保存失败",
+      description: "更新AI模型配置时发生错误，请重试",
+      type: "error",
+    },
+  });
+
+
   const [providers, setProviders] = useState<any[]>([]);
+  const [availableModels, setAvailableModels] = useState<any[]>([]);
+  const [fetchingModels, setFetchingModels] = useState(false);
+  const [testingConnection, setTestingConnection] = useState(false);
+  const [selectedProvider, setSelectedProvider] = useState<any>(null);
 
   useEffect(() => {
     loadProviders();
   }, []);
+
+  useEffect(() => {
+    if (queryResult?.data && providers.length > 0) {
+      const provider = providers.find(p => p.id === queryResult.data.providerId);
+      if (provider) {
+        setSelectedProvider(provider);
+      } else {
+        // 如果找不到提供商，可能是自定义提供商
+        setSelectedProvider({
+          name: 'custom',
+          displayName: queryResult.data.provider?.displayName || '自定义提供商',
+          id: queryResult.data.providerId
+        });
+      }
+    }
+  }, [queryResult?.data, providers]);
 
   const loadProviders = async () => {
     try {
@@ -34,8 +69,116 @@ export const AIModelEdit: React.FC = () => {
     }
   };
 
+  const handleProviderChange = (providerId: number) => {
+    const provider = providers.find(p => p.id === providerId);
+    setSelectedProvider(provider);
+    setAvailableModels([]);
+
+    // 如果是DeepSeek提供商，自动填充API地址
+    if (provider?.name === 'deepseek') {
+      form?.setFieldsValue({ customApiUrl: 'https://api.gmi-serving.com/v1' });
+    }
+  };
+
+  const fetchModels = async () => {
+    const apiKey = form?.getFieldValue('apiKeyEncrypted');
+    const customApiUrl = form?.getFieldValue('customApiUrl');
+
+    if (!selectedProvider) {
+      message.error('请先选择AI提供商');
+      return;
+    }
+
+    if (!apiKey) {
+      message.error('请先输入API密钥');
+      return;
+    }
+
+    if (selectedProvider.name === 'custom' && !customApiUrl) {
+      message.error('自定义提供商请先输入API地址');
+      return;
+    }
+
+    setFetchingModels(true);
+    try {
+      const response = await aiModelsAPI.fetchModels({
+        provider: selectedProvider.name,
+        apiKey,
+        apiUrl: customApiUrl,
+      });
+
+      if (response.success) {
+        setAvailableModels(response.data);
+        message.success(`成功拉取到 ${response.data.length} 个模型`);
+      } else {
+        message.error(response.message || '拉取模型列表失败');
+      }
+    } catch (error) {
+      console.error('拉取模型失败:', error);
+      message.error('拉取模型列表失败，请检查网络连接');
+    } finally {
+      setFetchingModels(false);
+    }
+  };
+
+  const testConnection = async () => {
+    const apiKey = form?.getFieldValue('apiKeyEncrypted');
+    const customApiUrl = form?.getFieldValue('customApiUrl');
+
+    if (!selectedProvider) {
+      message.error('请先选择AI提供商');
+      return;
+    }
+
+    if (!apiKey) {
+      message.error('请先输入API密钥');
+      return;
+    }
+
+    if (selectedProvider.name === 'custom' && !customApiUrl) {
+      message.error('自定义提供商请先输入API地址');
+      return;
+    }
+
+    setTestingConnection(true);
+    try {
+      const response = await aiModelsAPI.testConnection({
+        provider: selectedProvider.name,
+        apiKey,
+        apiUrl: customApiUrl,
+      });
+
+      if (response.success && response.data.connected) {
+        message.success('API连接测试成功');
+      } else {
+        message.error('API连接测试失败');
+      }
+    } catch (error) {
+      console.error('测试连接失败:', error);
+      message.error('测试连接失败，请检查网络连接');
+    } finally {
+      setTestingConnection(false);
+    }
+  };
+
   return (
-    <Edit saveButtonProps={saveButtonProps}>
+    <Edit
+      title="编辑AI模型"
+      breadcrumb={false}
+      saveButtonProps={{
+        ...saveButtonProps,
+        children: "保存"
+      }}
+      headerButtons={({ saveButtonProps: headerSaveProps }) => (
+        <Button
+          {...headerSaveProps}
+          type="primary"
+          icon={<SaveOutlined />}
+        >
+          保存
+        </Button>
+      )}
+    >
       <Form {...formProps} layout="vertical">
         <Row gutter={[16, 16]}>
           <Col xs={24} lg={12}>
@@ -47,6 +190,7 @@ export const AIModelEdit: React.FC = () => {
               >
                 <Select
                   placeholder="选择AI提供商"
+                  onChange={handleProviderChange}
                   options={providers.map((provider) => ({
                     label: provider.displayName,
                     value: provider.id,
@@ -55,20 +199,63 @@ export const AIModelEdit: React.FC = () => {
               </Form.Item>
 
               <Form.Item
-                label="模型名称"
-                name="name"
-                rules={[{ required: true, message: "请输入模型名称" }]}
+                label="API地址"
+                name="customApiUrl"
+                tooltip="自定义API地址，留空使用默认地址"
               >
-                <Input placeholder="例如: gpt-4, deepseek-chat" />
+                <Input placeholder={selectedProvider ? `默认: ${selectedProvider.baseUrl}` : "例如: https://api.openai.com/v1"} />
               </Form.Item>
 
               <Form.Item
-                label="显示名称"
-                name="displayName"
-                rules={[{ required: true, message: "请输入显示名称" }]}
+                label="API密钥"
+                name="apiKeyEncrypted"
+                rules={[{ required: true, message: "请输入API密钥" }]}
               >
-                <Input placeholder="例如: GPT-4, DeepSeek Chat" />
+                <Input.Password placeholder="输入API密钥" />
               </Form.Item>
+
+              <Form.Item label="连接测试">
+                <Space>
+                  <Button
+                    icon={<ApiOutlined />}
+                    onClick={testConnection}
+                    loading={testingConnection}
+                    disabled={!selectedProvider}
+                  >
+                    测试连接
+                  </Button>
+                  <Button
+                    icon={<ReloadOutlined />}
+                    onClick={fetchModels}
+                    loading={fetchingModels}
+                    disabled={!selectedProvider}
+                  >
+                    拉取模型列表
+                  </Button>
+                </Space>
+              </Form.Item>
+
+              <Form.Item
+                label="模型名称"
+                name="name"
+                rules={[{ required: true, message: "请选择或输入模型名称" }]}
+              >
+                {availableModels.length > 0 ? (
+                  <Select
+                    placeholder="选择模型"
+                    showSearch
+                    optionFilterProp="children"
+                    options={availableModels.map((model) => ({
+                      label: `${model.name} ${model.description ? `(${model.description})` : ''}`,
+                      value: model.id,
+                    }))}
+                  />
+                ) : (
+                  <Input placeholder="例如: gpt-4, deepseek-chat" />
+                )}
+              </Form.Item>
+
+
 
               <Form.Item
                 label="模型类型"
@@ -81,12 +268,7 @@ export const AIModelEdit: React.FC = () => {
                 </Select>
               </Form.Item>
 
-              <Form.Item
-                label="API密钥"
-                name="apiKeyEncrypted"
-              >
-                <Input.Password placeholder="输入API密钥（留空保持不变）" />
-              </Form.Item>
+
             </Card>
           </Col>
 
@@ -208,19 +390,7 @@ export const AIModelEdit: React.FC = () => {
             </Card>
           </Col>
 
-          <Col xs={24} lg={12}>
-            <Card title="元数据" size="small">
-              <Form.Item
-                label="描述信息"
-                name={["metadata", "description"]}
-              >
-                <TextArea
-                  rows={8}
-                  placeholder="模型的详细描述信息（可选）"
-                />
-              </Form.Item>
-            </Card>
-          </Col>
+
         </Row>
       </Form>
     </Edit>

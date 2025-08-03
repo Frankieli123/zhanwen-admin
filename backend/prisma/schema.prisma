@@ -31,6 +31,7 @@ model AiModel {
   name            String       @db.VarChar(100)
   displayName     String       @map("display_name") @db.VarChar(100)
   apiKeyEncrypted String?      @map("api_key_encrypted")
+  customApiUrl    String?      @map("custom_api_url") @db.VarChar(500)
   modelType       String       @default("chat") @map("model_type") @db.VarChar(50)
   parameters      Json         @default("{\"top_p\": 1.0, \"max_tokens\": 3000, \"temperature\": 0.7, \"presence_penalty\": 0.0, \"frequency_penalty\": 0.0}")
   role            String       @default("secondary") @db.VarChar(20)

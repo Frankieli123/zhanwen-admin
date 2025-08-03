@@ -2,7 +2,7 @@ import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 
 // API基础配置 - 生产环境使用相对路径，开发环境使用完整URL
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (
-  import.meta.env.MODE === 'production' ? '' : 'http://localhost:30001'
+  import.meta.env.MODE === 'production' ? '' : 'http://localhost:3001'
 );
 
 // 创建axios实例
@@ -154,6 +154,20 @@ export const aiModelsAPI = {
 
   // 获取AI提供商详情
   getProvider: (id: number) => api.get(`/api/ai-providers/${id}`),
+
+  // 获取当前活跃AI配置
+  getActiveConfiguration: () => api.get('/api/ai-models/active'),
+
+  // 获取当前主模型
+  getPrimaryModel: () => api.get('/api/ai-models/primary'),
+
+  // 拉取模型列表
+  fetchModels: (data: { provider: string; apiKey: string; apiUrl?: string }) =>
+    api.post('/api/ai-models/fetch-models', data),
+
+  // 测试API连接
+  testConnection: (data: { provider: string; apiKey: string; apiUrl?: string }) =>
+    api.post('/api/ai-models/test-connection', data),
 };
 
 // 提示词模板相关API

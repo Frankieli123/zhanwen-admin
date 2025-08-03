@@ -92,10 +92,12 @@ export interface ChangePasswordRequest {
 
 // AI模型相关类型
 export interface AIModelCreateRequest {
-  providerId: number;
+  providerId: number | string;
   name: string;
-  displayName: string;
+  displayName?: string;
   apiKeyEncrypted?: string;
+  customApiUrl?: string;
+  customProviderName?: string;
   modelType?: 'chat' | 'completion' | 'embedding';
   parameters?: {
     temperature?: number;
@@ -113,8 +115,12 @@ export interface AIModelCreateRequest {
 }
 
 export interface AIModelUpdateRequest {
+  providerId?: number | string;
+  name?: string;
   displayName?: string;
   apiKeyEncrypted?: string;
+  customApiUrl?: string;
+  customProviderName?: string;
   modelType?: 'chat' | 'completion' | 'embedding';
   parameters?: {
     temperature?: number;
@@ -125,7 +131,7 @@ export interface AIModelUpdateRequest {
   };
   role?: 'primary' | 'secondary' | 'disabled';
   priority?: number;
-  costPer1kTokens?: number;
+  costPer1kTokens?: number | string;
   contextWindow?: number;
   isActive?: boolean;
   metadata?: Record<string, any>;

@@ -140,20 +140,45 @@ export class AIModelService {
    */
   async createModel(data: AIModelCreateRequest, createdBy: number): Promise<AiModel> {
     try {
-      // 验证提供商是否存在
-      const provider = await prisma.aiProvider.findUnique({
-        where: { id: data.providerId },
-      });
+      let provider: any;
+      let actualProviderId: number;
 
-      if (!provider) {
-        throw createError('AI提供商不存在', 404, 'PROVIDER_NOT_FOUND');
+      // 处理自定义提供商
+      if (data.providerId === 'custom') {
+        if (!data.customProviderName) {
+          throw createError('自定义提供商需要提供商名称', 400, 'CUSTOM_PROVIDER_NAME_REQUIRED');
+        }
+
+        // 创建或查找自定义提供商
+        provider = await prisma.aiProvider.upsert({
+          where: { name: data.customProviderName.toLowerCase().replace(/\s+/g, '-') },
+          update: {},
+          create: {
+            name: data.customProviderName.toLowerCase().replace(/\s+/g, '-'),
+            displayName: data.customProviderName,
+            baseUrl: data.customApiUrl || 'https://api.openai.com/v1',
+            supportedModels: [],
+            isActive: true,
+          },
+        });
+        actualProviderId = provider.id;
+      } else {
+        // 验证提供商是否存在
+        provider = await prisma.aiProvider.findUnique({
+          where: { id: data.providerId as number },
+        });
+
+        if (!provider) {
+          throw createError('AI提供商不存在', 404, 'PROVIDER_NOT_FOUND');
+        }
+        actualProviderId = data.providerId as number;
       }
 
       // 检查模型名称是否已存在（同一提供商下）
       const existingModel = await prisma.aiModel.findUnique({
         where: {
           providerId_name: {
-            providerId: data.providerId,
+            providerId: actualProviderId,
             name: data.name,
           },
         },
@@ -179,8 +204,12 @@ export class AIModelService {
 
       const model = await prisma.aiModel.create({
         data: {
-          ...data,
+          providerId: actualProviderId,
+          name: data.name,
+          displayName: data.displayName || data.name,
           apiKeyEncrypted: encryptedApiKey,
+          customApiUrl: data.customApiUrl,
+          modelType: data.modelType || 'chat',
           parameters: data.parameters || {
             temperature: 0.7,
             max_tokens: 3000,
@@ -188,6 +217,12 @@ export class AIModelService {
             frequency_penalty: 0.0,
             presence_penalty: 0.0,
           },
+          role: data.role || 'secondary',
+          priority: data.priority || 100,
+          costPer1kTokens: data.costPer1kTokens || 0,
+          contextWindow: data.contextWindow || 4000,
+          isActive: data.isActive !== undefined ? data.isActive : true,
+          metadata: data.metadata || {},
         },
         include: {
           provider: true,
@@ -242,15 +277,33 @@ export class AIModelService {
         });
       }
 
+      // 准备更新数据
+      const updateData: any = {
+        apiKeyEncrypted: encryptedApiKey,
+        parameters: data.parameters
+          ? { ...(existingModel.parameters as Record<string, any> || {}), ...data.parameters }
+          : existingModel.parameters,
+      };
+
+      // 只更新提供的字段
+      if (data.name !== undefined) updateData.name = data.name;
+      if (data.displayName !== undefined) updateData.displayName = data.displayName;
+      if (data.customApiUrl !== undefined) updateData.customApiUrl = data.customApiUrl;
+      if (data.modelType !== undefined) updateData.modelType = data.modelType;
+      if (data.role !== undefined) updateData.role = data.role;
+      if (data.priority !== undefined) updateData.priority = data.priority;
+      if (data.costPer1kTokens !== undefined) {
+        updateData.costPer1kTokens = typeof data.costPer1kTokens === 'string'
+          ? parseFloat(data.costPer1kTokens)
+          : data.costPer1kTokens;
+      }
+      if (data.contextWindow !== undefined) updateData.contextWindow = data.contextWindow;
+      if (data.isActive !== undefined) updateData.isActive = data.isActive;
+      if (data.metadata !== undefined) updateData.metadata = data.metadata;
+
       const updatedModel = await prisma.aiModel.update({
         where: { id },
-        data: {
-          ...data,
-          apiKeyEncrypted: encryptedApiKey,
-          parameters: data.parameters
-            ? { ...(existingModel.parameters as Record<string, any> || {}), ...data.parameters }
-            : existingModel.parameters,
-        },
+        data: updateData,
         include: {
           provider: true,
         },
@@ -540,6 +593,117 @@ export class AIModelService {
   }
 
   /**
+   * 获取当前活跃的主模型配置
+   */
+  async getActiveModel(): Promise<(AiModel & { provider: AiProvider }) | null> {
+    try {
+      const activeModel = await prisma.aiModel.findFirst({
+        where: {
+          isActive: true,
+          role: 'primary',
+        },
+        include: {
+          provider: true,
+        },
+        orderBy: {
+          priority: 'asc', // 优先级数字越小越优先
+        },
+      });
+
+      if (activeModel && activeModel.apiKeyEncrypted) {
+        try {
+          const decryptedKey = decrypt(activeModel.apiKeyEncrypted);
+          return {
+            ...activeModel,
+            apiKeyEncrypted: decryptedKey,
+          };
+        } catch (decryptError) {
+          logger.warn('主模型API密钥解密失败', { modelId: activeModel.id, error: decryptError });
+          return {
+            ...activeModel,
+            apiKeyEncrypted: null,
+          };
+        }
+      }
+
+      return activeModel;
+    } catch (error) {
+      logger.error('获取活跃主模型失败', error);
+      throw createError('获取活跃主模型失败', 500);
+    }
+  }
+
+  /**
+   * 获取备用模型列表（按优先级排序）
+   */
+  async getBackupModels(): Promise<Array<AiModel & { provider: AiProvider }>> {
+    try {
+      const backupModels = await prisma.aiModel.findMany({
+        where: {
+          isActive: true,
+          role: 'secondary',
+        },
+        include: {
+          provider: true,
+        },
+        orderBy: {
+          priority: 'asc',
+        },
+      });
+
+      // 解密API密钥
+      return backupModels.map(model => {
+        if (model.apiKeyEncrypted) {
+          try {
+            const decryptedKey = decrypt(model.apiKeyEncrypted);
+            return {
+              ...model,
+              apiKeyEncrypted: decryptedKey,
+            };
+          } catch (decryptError) {
+            logger.warn('备用模型API密钥解密失败', { modelId: model.id, error: decryptError });
+            return {
+              ...model,
+              apiKeyEncrypted: null,
+            };
+          }
+        }
+        return model;
+      });
+    } catch (error) {
+      logger.error('获取备用模型列表失败', error);
+      throw createError('获取备用模型列表失败', 500);
+    }
+  }
+
+  /**
+   * 获取完整的AI配置（主模型 + 备用模型）
+   */
+  async getAIConfiguration(): Promise<{
+    primary: (AiModel & { provider: AiProvider }) | null;
+    backups: Array<AiModel & { provider: AiProvider }>;
+    hasValidConfig: boolean;
+  }> {
+    try {
+      const [primary, backups] = await Promise.all([
+        this.getActiveModel(),
+        this.getBackupModels(),
+      ]);
+
+      const hasValidConfig = !!(primary && primary.apiKeyEncrypted);
+
+      return {
+        primary,
+        backups,
+        hasValidConfig,
+      };
+    } catch (error) {
+      logger.error('获取AI配置失败', error);
+      throw createError('获取AI配置失败', 500);
+    }
+  }
+
+  /**
    * 计算成功率
    */
   private calculateSuccessRate(stats: any[]): number {
@@ -547,7 +711,7 @@ export class AIModelService {
     const successful = stats
       .filter(stat => stat.status === 'success')
       .reduce((sum, stat) => sum + stat._count.id, 0);
-    
+
     return total > 0 ? (successful / total) * 100 : 0;
   }
 }
