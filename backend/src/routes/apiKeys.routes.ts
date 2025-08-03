@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import {
   getApiKeys,
   getApiKeyById,
@@ -12,7 +12,12 @@ import { authenticateToken, requirePermission } from '@/middleware/auth.middlewa
 import { validate } from '@/middleware/validation.middleware';
 import { auditLog, batchAuditLog } from '@/middleware/audit.middleware';
 import { paginationValidation, commonValidations } from '@/middleware/validation.middleware';
+import { asyncHandler } from '@/middleware/async.middleware';
+import { PrismaClient } from '@prisma/client';
+import { ApiResponse } from '@/types/api.types';
 import Joi from 'joi';
+
+const prisma = new PrismaClient();
 
 const router = Router();
 
@@ -369,7 +374,7 @@ router.get(
     }),
   }),
   asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const { days = 30 } = req.query;
+    const { days = 30 } = req.query as { days?: string };
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - Number(days));
 

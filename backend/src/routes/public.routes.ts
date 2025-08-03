@@ -300,7 +300,6 @@ router.get(
         name: true,
         displayName: true,
         baseUrl: true,
-        description: true,
         supportedModels: true,
       },
       orderBy: {
@@ -406,7 +405,7 @@ router.get(
     const template = await prisma.promptTemplate.findFirst({
       where: {
         name,
-        isActive: true,
+        status: 'active',
       },
       select: {
         id: true,
@@ -456,25 +455,25 @@ router.get(
   authenticateApiKey,
   requireApiPermission('hexagrams:read'),
   asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const hexagrams = await prisma.hexagram.findMany({
+    const hexagrams = await prisma.hexagramData.findMany({
+      where: {
+        isActive: true,
+      },
       select: {
         id: true,
-        number: true,
         name: true,
-        chineseName: true,
-        symbol: true,
-        upperTrigram: true,
-        lowerTrigram: true,
+        element: true,
         description: true,
         interpretation: true,
-        keywords: true,
-        element: true,
-        season: true,
-        direction: true,
+        favorableActions: true,
+        unfavorableActions: true,
+        timeInfo: true,
+        directionInfo: true,
+        resolutionMethods: true,
         updatedAt: true,
       },
       orderBy: {
-        number: 'asc'
+        name: 'asc'
       }
     });
 
@@ -490,21 +489,19 @@ router.get(
 
 /**
  * @swagger
- * /public/hexagrams/{number}:
+ * /public/hexagrams/{id}:
  *   get:
- *     summary: 根据卦象编号获取详细信息（公开接口）
+ *     summary: 根据卦象ID获取详细信息（公开接口）
  *     tags: [Public API]
  *     security:
  *       - apiKey: []
  *     parameters:
  *       - in: path
- *         name: number
+ *         name: id
  *         required: true
  *         schema:
  *           type: integer
- *           minimum: 1
- *           maximum: 64
- *         description: 卦象编号（1-64）
+ *         description: 卦象ID
  *     responses:
  *       200:
  *         description: 获取成功
@@ -512,37 +509,37 @@ router.get(
  *         description: 卦象不存在
  */
 router.get(
-  '/public/hexagrams/:number',
+  '/public/hexagrams/:id',
   authenticateApiKey,
   requireApiPermission('hexagrams:read'),
   asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const number = parseInt(req.params.number);
+    const id = parseInt(req.params.id);
 
-    if (isNaN(number) || number < 1 || number > 64) {
+    if (isNaN(id)) {
       res.status(400).json({
         success: false,
-        message: '卦象编号必须是1-64之间的整数',
-        code: 'INVALID_HEXAGRAM_NUMBER'
+        message: '卦象ID必须是有效的整数',
+        code: 'INVALID_HEXAGRAM_ID'
       });
       return;
     }
 
-    const hexagram = await prisma.hexagram.findFirst({
-      where: { number },
+    const hexagram = await prisma.hexagramData.findFirst({
+      where: {
+        id,
+        isActive: true
+      },
       select: {
         id: true,
-        number: true,
         name: true,
-        chineseName: true,
-        symbol: true,
-        upperTrigram: true,
-        lowerTrigram: true,
+        element: true,
         description: true,
         interpretation: true,
-        keywords: true,
-        element: true,
-        season: true,
-        direction: true,
+        favorableActions: true,
+        unfavorableActions: true,
+        timeInfo: true,
+        directionInfo: true,
+        resolutionMethods: true,
         updatedAt: true,
       }
     });
