@@ -37,6 +37,7 @@ export const AIModelEdit: React.FC = () => {
   const [fetchingModels, setFetchingModels] = useState(false);
   const [testingConnection, setTestingConnection] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<any>(null);
+  const [showApiKey, setShowApiKey] = useState(false);
 
   useEffect(() => {
     loadProviders();
@@ -216,7 +217,13 @@ export const AIModelEdit: React.FC = () => {
                 name="apiKeyEncrypted"
                 rules={[{ required: true, message: "请输入API密钥" }]}
               >
-                <Input.Password placeholder="输入API密钥" />
+                <Input.Password
+                  placeholder="输入API密钥"
+                  visibilityToggle={{
+                    visible: showApiKey,
+                    onVisibleChange: setShowApiKey,
+                  }}
+                />
               </Form.Item>
 
               <Form.Item label="连接测试">

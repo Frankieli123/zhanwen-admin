@@ -20,11 +20,15 @@ export const Analytics: React.FC = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
+        console.log('开始获取分析数据...');
+
         const [overview, hexagrams, models] = await Promise.all([
           analyticsAPI.getOverview(),
           analyticsAPI.getHexagramStatistics(),
           analyticsAPI.getModelPerformance()
         ]);
+
+        console.log('分析数据获取结果:', { overview, hexagrams, models });
 
         setOverviewData(overview.data);
         setHexagramStats(hexagrams.data);

@@ -51,7 +51,9 @@ export const Dashboard: React.FC = () => {
       // 获取基础统计数据 - 使用现有的分析API
       try {
         const analyticsResponse = await analyticsAPI.getOverview();
-        if (analyticsResponse.data) {
+        console.log('分析API响应:', analyticsResponse);
+
+        if (analyticsResponse?.data?.success && analyticsResponse.data.data) {
           const data = analyticsResponse.data.data;
           setStats({
             totalUsers: data.users?.total || 0,
@@ -84,6 +86,9 @@ export const Dashboard: React.FC = () => {
               },
             ],
           });
+        } else {
+          console.warn("分析API响应格式不正确:", analyticsResponse);
+          throw new Error('API响应格式不正确');
         }
       } catch (analyticsError) {
         console.warn("分析API暂不可用，使用模拟数据:", analyticsError);
@@ -92,8 +97,8 @@ export const Dashboard: React.FC = () => {
           totalUsers: 1,
           totalApiCalls: Math.floor(Math.random() * 10000),
           totalCost: Math.floor(Math.random() * 1000),
-          activeModels: 0,
-          activeTemplates: 0,
+          activeModels: 2,
+          activeTemplates: 5,
           totalConfigs: 10,
           recentActivity: [
             {

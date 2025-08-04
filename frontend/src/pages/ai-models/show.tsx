@@ -56,6 +56,12 @@ export const AIModelShow: React.FC = () => {
     const hide = message.loading('正在测试连接...', 0);
 
     try {
+      console.log('开始测试连接:', {
+        provider: record.provider?.name || 'custom',
+        apiUrl: record.customApiUrl || record.provider?.baseUrl,
+        hasApiKey: !!record.apiKeyEncrypted
+      });
+
       const response = await aiModelsAPI.testConnection({
         provider: record.provider?.name || 'custom',
         apiKey: record.apiKeyEncrypted,
@@ -65,10 +71,12 @@ export const AIModelShow: React.FC = () => {
       const duration = Date.now() - startTime;
       hide();
 
-      if (response.success && response.data.connected) {
+      console.log('测试连接响应:', response, '耗时:', duration + 'ms');
+
+      if (response.success && response.data?.connected) {
         message.success(`API连接测试成功 (${duration}ms)`);
       } else {
-        message.error(`API连接测试失败 (${duration}ms)`);
+        message.error(`API连接测试失败 (${duration}ms): ${response.message || '未知错误'}`);
       }
     } catch (error) {
       const duration = Date.now() - startTime;
