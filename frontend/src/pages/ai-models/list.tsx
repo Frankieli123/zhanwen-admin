@@ -142,17 +142,49 @@ export const AIModelList: React.FC = () => {
       setTestingConnection(id);
       message.loading({ content: "正在测试连接...", key: "test-connection" });
 
-      const response = await aiModelsAPI.testModelConnection(id);
+      // 首先获取模型详细信息
+      const modelResponse = await aiModelsAPI.getModel(id);
+      if (!modelResponse.success || !modelResponse.data) {
+        message.error({
+          content: "获取模型信息失败",
+          key: "test-connection",
+          duration: 3,
+        });
+        return;
+      }
 
-      if (response.success) {
+      const model = modelResponse.data;
+
+      // 检查是否有API密钥
+      if (!model.apiKeyEncrypted) {
+        message.error({
+          content: "该模型未配置API密钥，无法测试连接",
+          key: "test-connection",
+          duration: 3,
+        });
+        return;
+      }
+
+      const startTime = Date.now();
+
+      // 调用真实的API测试接口
+      const response = await aiModelsAPI.testConnection({
+        provider: model.provider?.name || 'custom',
+        apiKey: model.apiKeyEncrypted,
+        apiUrl: model.customApiUrl || model.provider?.baseUrl,
+      });
+
+      const duration = Date.now() - startTime;
+
+      if (response.success && response.data?.connected) {
         message.success({
-          content: `连接测试成功！响应时间: ${response.data?.responseTime || 0}ms`,
+          content: `连接测试成功！响应时间: ${duration}ms`,
           key: "test-connection",
           duration: 3,
         });
       } else {
         message.error({
-          content: response.message || "连接测试失败",
+          content: `连接测试失败 (${duration}ms): ${response.message || '未知错误'}`,
           key: "test-connection",
           duration: 3,
         });

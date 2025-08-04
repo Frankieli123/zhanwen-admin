@@ -59,6 +59,18 @@ export const AIModelEdit: React.FC = () => {
     }
   }, [queryResult?.data, providers]);
 
+  // 确保API密钥正确显示在表单中
+  useEffect(() => {
+    if (queryResult?.data && form) {
+      // 手动设置表单值，确保API密钥能正确显示
+      form.setFieldsValue({
+        ...queryResult.data,
+        // 确保API密钥字段正确设置
+        apiKeyEncrypted: queryResult.data.apiKeyEncrypted || '',
+      });
+    }
+  }, [queryResult?.data, form]);
+
   const loadProviders = async () => {
     try {
       const response = await aiModelsAPI.getActiveProviders();
