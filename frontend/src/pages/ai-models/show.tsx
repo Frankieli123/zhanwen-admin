@@ -1,7 +1,7 @@
 import React from "react";
 import { Show, TextField, BooleanField, NumberField } from "@refinedev/antd";
 import { Typography, Card, Row, Col, Tag, Space, Button, Descriptions, message } from "antd";
-import { ApiOutlined } from "@ant-design/icons";
+import { ApiOutlined, EyeOutlined, EyeInvisibleOutlined, CopyOutlined } from "@ant-design/icons";
 import { useShow, useNavigation } from "@refinedev/core";
 import { aiModelsAPI } from "../../utils/api";
 
@@ -11,6 +11,8 @@ export const AIModelShow: React.FC = () => {
   const { queryResult } = useShow();
   const { edit } = useNavigation();
   const { data, isLoading, refetch } = queryResult;
+  const record = data?.data;
+  const [showApiKey, setShowApiKey] = React.useState(false);
 
   const handleRefresh = async () => {
     const hide = message.loading('正在刷新数据...', 0);
@@ -25,26 +27,54 @@ export const AIModelShow: React.FC = () => {
     }
   };
 
-  const record = data?.data;
+  // 格式化 API Key 显示
+  const formatApiKey = (apiKey: string) => {
+    if (!apiKey) return '';
+    if (apiKey.length <= 8) return apiKey;
+    return `${apiKey.substring(0, 4)}...${apiKey.substring(apiKey.length - 4)}`;
+  };
+
+  // 复制 API Key
+  const handleCopyApiKey = (apiKey: string) => {
+    navigator.clipboard.writeText(apiKey).then(() => {
+      message.success('API Key 已复制到剪贴板');
+    }).catch(() => {
+      message.error('复制失败');
+    });
+  };
 
   const handleTestConnection = async () => {
     if (!record) return;
 
+    // 检查是否有 API Key
+    if (!record.apiKeyEncrypted || record.apiKeyEncrypted.trim() === '') {
+      message.error('请先配置 API Key');
+      return;
+    }
+
+    const startTime = Date.now();
+    const hide = message.loading('正在测试连接...', 0);
+
     try {
       const response = await aiModelsAPI.testConnection({
         provider: record.provider?.name || 'custom',
-        apiKey: record.apiKeyEncrypted || '',
+        apiKey: record.apiKeyEncrypted,
         apiUrl: record.customApiUrl || record.provider?.baseUrl,
       });
 
+      const duration = Date.now() - startTime;
+      hide();
+
       if (response.success && response.data.connected) {
-        message.success('API连接测试成功');
+        message.success(`API连接测试成功 (${duration}ms)`);
       } else {
-        message.error('API连接测试失败');
+        message.error(`API连接测试失败 (${duration}ms)`);
       }
     } catch (error) {
+      const duration = Date.now() - startTime;
+      hide();
       console.error("测试连接失败:", error);
-      message.error('测试连接失败，请检查网络连接');
+      message.error(`API连接测试失败 (${duration}ms)`);
     }
   };
 
@@ -139,7 +169,33 @@ export const AIModelShow: React.FC = () => {
               </Descriptions.Item>
               <Descriptions.Item label="API密钥">
                 {record?.apiKeyEncrypted ? (
-                  <Tag color="green">已配置</Tag>
+                  <Space>
+                    <code style={{
+                      padding: '2px 6px',
+                      backgroundColor: '#f6f8fa',
+                      border: '1px solid #e1e4e8',
+                      borderRadius: '4px',
+                      fontFamily: 'Monaco, Consolas, monospace',
+                      fontSize: '12px'
+                    }}>
+                      {showApiKey ? record.apiKeyEncrypted : formatApiKey(record.apiKeyEncrypted)}
+                    </code>
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={showApiKey ? <EyeInvisibleOutlined /> : <EyeOutlined />}
+                      onClick={() => setShowApiKey(!showApiKey)}
+                      title={showApiKey ? '隐藏' : '显示'}
+                    />
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<CopyOutlined />}
+                      onClick={() => handleCopyApiKey(record.apiKeyEncrypted)}
+                      title="复制"
+                    />
+                    <Tag color="green">已配置</Tag>
+                  </Space>
                 ) : (
                   <Tag color="orange">未配置</Tag>
                 )}

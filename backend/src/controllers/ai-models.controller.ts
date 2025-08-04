@@ -589,7 +589,8 @@ export const fetchModels = asyncHandler(async (req: Request, res: Response): Pro
 export const testAPIConnection = asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const { provider, apiKey, apiUrl } = req.body;
 
-  if (!provider || !apiKey) {
+  // 更严格的验证：检查空值、空字符串和只包含空格的字符串
+  if (!provider || !apiKey || typeof apiKey !== 'string' || apiKey.trim() === '') {
     const response: ApiResponse = {
       success: false,
       message: '供应商和API密钥不能为空',

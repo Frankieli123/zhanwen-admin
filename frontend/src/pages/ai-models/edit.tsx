@@ -130,7 +130,7 @@ export const AIModelEdit: React.FC = () => {
       return;
     }
 
-    if (!apiKey) {
+    if (!apiKey || apiKey.trim() === '') {
       message.error('请先输入API密钥');
       return;
     }
@@ -140,22 +140,27 @@ export const AIModelEdit: React.FC = () => {
       return;
     }
 
+    const startTime = Date.now();
     setTestingConnection(true);
+
     try {
       const response = await aiModelsAPI.testConnection({
         provider: selectedProvider.name,
-        apiKey,
+        apiKey: apiKey.trim(),
         apiUrl: customApiUrl,
       });
 
+      const duration = Date.now() - startTime;
+
       if (response.success && response.data.connected) {
-        message.success('API连接测试成功');
+        message.success(`API连接测试成功 (${duration}ms)`);
       } else {
-        message.error('API连接测试失败');
+        message.error(`API连接测试失败 (${duration}ms)`);
       }
     } catch (error) {
+      const duration = Date.now() - startTime;
       console.error('测试连接失败:', error);
-      message.error('测试连接失败，请检查网络连接');
+      message.error(`测试连接失败 (${duration}ms)`);
     } finally {
       setTestingConnection(false);
     }

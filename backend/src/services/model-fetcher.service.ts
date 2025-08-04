@@ -22,6 +22,11 @@ export class ModelFetcherService {
   static async fetchModels(request: FetchModelsRequest): Promise<ModelInfo[]> {
     const { provider, apiKey, apiUrl } = request;
 
+    // 验证必要参数
+    if (!provider || !apiKey || typeof apiKey !== 'string' || apiKey.trim() === '') {
+      throw new Error('供应商和API密钥不能为空');
+    }
+
     try {
       switch (provider.toLowerCase()) {
         case 'openai':
@@ -193,9 +198,27 @@ export class ModelFetcherService {
    */
   static async testConnection(request: FetchModelsRequest): Promise<boolean> {
     try {
+      // 验证参数
+      if (!request.apiKey || typeof request.apiKey !== 'string' || request.apiKey.trim() === '') {
+        logger.error('测试连接失败：API Key 为空');
+        return false;
+      }
+
       const models = await this.fetchModels(request);
-      return models.length > 0;
+      const isConnected = models.length > 0;
+
+      logger.info('API连接测试结果', {
+        provider: request.provider,
+        connected: isConnected,
+        modelCount: models.length
+      });
+
+      return isConnected;
     } catch (error) {
+      logger.error('API连接测试失败', {
+        provider: request.provider,
+        error: error instanceof Error ? error.message : String(error)
+      });
       return false;
     }
   }
