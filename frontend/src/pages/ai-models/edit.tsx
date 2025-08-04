@@ -62,11 +62,13 @@ export const AIModelEdit: React.FC = () => {
   // 确保API密钥正确显示在表单中
   useEffect(() => {
     if (queryResult?.data && form) {
+      console.log('编辑页面数据:', queryResult.data);
       // 手动设置表单值，确保API密钥能正确显示
+      const formData: any = queryResult.data.data || queryResult.data;
       form.setFieldsValue({
-        ...queryResult.data,
+        ...formData,
         // 确保API密钥字段正确设置
-        apiKeyEncrypted: queryResult.data.apiKeyEncrypted || '',
+        apiKeyEncrypted: formData.apiKeyEncrypted || '',
       });
     }
   }, [queryResult?.data, form]);
