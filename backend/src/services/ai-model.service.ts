@@ -1,15 +1,14 @@
-import { PrismaClient, AiModel, AiProvider } from '@prisma/client';
+import { AiModel, AiProvider } from '@prisma/client';
 import { encrypt, decrypt } from '@/utils/encryption';
 import { createError } from '@/middleware/error.middleware';
 import { logger } from '@/utils/logger';
+import { prisma } from '@/lib/prisma';
 import {
   AIModelCreateRequest,
   AIModelUpdateRequest,
   PaginationQuery,
   PaginatedResponse,
 } from '@/types/api.types';
-
-const prisma = new PrismaClient();
 
 export class AIModelService {
   /**

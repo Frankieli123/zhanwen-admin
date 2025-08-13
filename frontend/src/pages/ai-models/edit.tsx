@@ -65,9 +65,15 @@ export const AIModelEdit: React.FC = () => {
       console.log('编辑页面数据:', queryResult.data);
       // 手动设置表单值，确保API密钥能正确显示
       const formData: any = queryResult.data.data || queryResult.data;
+
+      // 检查API密钥是否解密失败
+      if (formData.apiKeyEncrypted === null && queryResult.data.data) {
+        message.warning('API密钥解密失败，请重新输入API密钥', 5);
+      }
+
       form.setFieldsValue({
         ...formData,
-        // 确保API密钥字段正确设置
+        // 如果API密钥解密失败（为null），则显示空字符串
         apiKeyEncrypted: formData.apiKeyEncrypted || '',
       });
     }

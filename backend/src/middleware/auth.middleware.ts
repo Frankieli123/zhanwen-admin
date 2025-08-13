@@ -1,9 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { verifyToken, JwtPayload } from '@/utils/jwt';
 import { logger } from '@/utils/logger';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
 
 // 扩展Request接口，添加用户信息
 declare global {

@@ -1,22 +1,46 @@
+// 首先加载环境变量，必须在任何其他导入之前
+import dotenv from 'dotenv';
+dotenv.config();
+
+// 验证关键环境变量
+const requiredEnvVars = {
+  DATABASE_URL: process.env.DATABASE_URL,
+  JWT_SECRET: process.env.JWT_SECRET,
+  ENCRYPTION_KEY: process.env.ENCRYPTION_KEY,
+};
+
+const missingVars = Object.entries(requiredEnvVars)
+  .filter(([, value]) => !value)
+  .map(([key]) => key);
+
+if (missingVars.length > 0) {
+  console.error('❌ 缺少必需的环境变量:', missingVars.join(', '));
+  console.error('请检查 .env 文件是否存在并包含所有必需的环境变量');
+  process.exit(1);
+}
+
+console.log('✅ 环境变量验证通过');
+console.log('🔐 加密密钥长度:', process.env.ENCRYPTION_KEY?.length);
+console.log('🌍 当前环境:', process.env.NODE_ENV || 'development');
+
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import compression from 'compression';
 import rateLimit from 'express-rate-limit';
-import dotenv from 'dotenv';
 import swaggerJsdoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
 import path from 'path';
+
+// 初始化全局Prisma实例
+import '@/lib/prisma';
 
 import { errorHandler, notFoundHandler } from '@/middleware/error.middleware';
 import { logger } from '@/utils/logger';
 import apiRoutes from '@/routes/api.routes';
 import authRoutes from '@/routes/auth.routes';
 import publicRoutes from '@/routes/public.routes';
-
-// 加载环境变量
-dotenv.config();
 
 const app = express();
 const PORT = process.env['PORT'] || 3001;
@@ -106,13 +130,83 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 
 // 健康检查
-app.get('/health', (_req, res) => {
-  res.json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    environment: process.env['NODE_ENV'],
-  });
+app.get('/health', async (_req, res) => {
+  try {
+    // 检查数据库连接
+    const { prisma } = await import('@/lib/prisma');
+    await prisma.$queryRaw`SELECT 1`;
+
+    res.json({
+      success: true,
+      message: '服务运行正常',
+      data: {
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV || 'development',
+        uptime: process.uptime(),
+        database: 'connected',
+      }
+    });
+  } catch (error) {
+    logger.error('健康检查失败', error);
+    res.status(503).json({
+      success: false,
+      message: '服务不可用',
+      data: {
+        status: 'unhealthy',
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV || 'development',
+        uptime: process.uptime(),
+        database: 'disconnected',
+        error: error instanceof Error ? error.message : 'Unknown error',
+      }
+    });
+  }
+});
+
+// 数据库连接状态监控端点
+app.get('/api/db-status', async (_req, res) => {
+  try {
+    const { prisma } = await import('@/lib/prisma');
+    const startTime = Date.now();
+
+    // 执行简单查询测试连接
+    await prisma.$queryRaw`SELECT 1`;
+    const queryTime = Date.now() - startTime;
+
+    // 获取数据库统计信息
+    const [userCount, modelCount, templateCount] = await Promise.all([
+      prisma.adminUser.count(),
+      prisma.aiModel.count(),
+      prisma.promptTemplate.count(),
+    ]);
+
+    res.json({
+      success: true,
+      message: '数据库连接正常',
+      data: {
+        status: 'connected',
+        queryTime: `${queryTime}ms`,
+        timestamp: new Date().toISOString(),
+        statistics: {
+          users: userCount,
+          aiModels: modelCount,
+          promptTemplates: templateCount,
+        }
+      }
+    });
+  } catch (error) {
+    logger.error('数据库状态检查失败', error);
+    res.status(503).json({
+      success: false,
+      message: '数据库连接失败',
+      data: {
+        status: 'disconnected',
+        timestamp: new Date().toISOString(),
+        error: error instanceof Error ? error.message : 'Unknown error',
+      }
+    });
+  }
 });
 
 // 代理配置测试端点（仅在开发环境启用）

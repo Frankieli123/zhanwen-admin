@@ -22,11 +22,11 @@ export const decrypt = (encryptedText: string): string => {
   try {
     const bytes = CryptoJS.AES.decrypt(encryptedText, ENCRYPTION_KEY);
     const decrypted = bytes.toString(CryptoJS.enc.Utf8);
-    
+
     if (!decrypted) {
       throw new Error('解密结果为空');
     }
-    
+
     return decrypted;
   } catch (error) {
     throw new Error('解密失败');

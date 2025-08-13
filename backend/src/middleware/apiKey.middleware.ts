@@ -1,7 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
 
 // 防抖更新缓存，避免频繁数据库写入
 const updateQueue = new Map<number, NodeJS.Timeout>();

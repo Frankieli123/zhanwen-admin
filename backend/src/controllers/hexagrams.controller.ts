@@ -1,10 +1,8 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { createError } from '@/middleware/error.middleware';
 import { logger } from '@/utils/logger';
+import { prisma } from '@/lib/prisma';
 import { PaginationQuery, PaginatedResponse } from '@/types/api.types';
-
-const prisma = new PrismaClient();
 
 // 获取卦象数据列表
 export const getHexagrams = async (req: Request, res: Response) => {

@@ -1,9 +1,8 @@
-import { PrismaClient, AiProvider } from '@prisma/client';
+import { AiProvider } from '@prisma/client';
 import { createError } from '@/middleware/error.middleware';
 import { logger } from '@/utils/logger';
+import { prisma } from '@/lib/prisma';
 import { PaginationQuery, PaginatedResponse } from '@/types/api.types';
-
-const prisma = new PrismaClient();
 
 export interface AIProviderCreateRequest {
   name: string;

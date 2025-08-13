@@ -1,14 +1,13 @@
-import { PrismaClient, AppConfig } from '@prisma/client';
+import { AppConfig } from '@prisma/client';
 import { createError } from '@/middleware/error.middleware';
 import { logger } from '@/utils/logger';
+import { prisma } from '@/lib/prisma';
 import {
   AppConfigCreateRequest,
   AppConfigUpdateRequest,
   PaginationQuery,
   PaginatedResponse,
 } from '@/types/api.types';
-
-const prisma = new PrismaClient();
 
 export class AppConfigService {
   /**

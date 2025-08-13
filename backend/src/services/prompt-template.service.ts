@@ -1,14 +1,13 @@
-import { PrismaClient, PromptTemplate } from '@prisma/client';
+import { PromptTemplate } from '@prisma/client';
 import { createError } from '@/middleware/error.middleware';
 import { logger } from '@/utils/logger';
+import { prisma } from '@/lib/prisma';
 import {
   PromptTemplateCreateRequest,
   PromptTemplateUpdateRequest,
   PaginationQuery,
   PaginatedResponse,
 } from '@/types/api.types';
-
-const prisma = new PrismaClient();
 
 // 定义包含 creator 信息的 PromptTemplate 类型
 type PromptTemplateWithCreator = PromptTemplate & {
