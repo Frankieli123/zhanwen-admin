@@ -123,7 +123,7 @@ router.get(
       ]
     });
 
-    // 过滤返回的字段，不包含敏感信息
+    // 过滤返回的字段，包含解密后的API密钥
     const filteredModels = activeModels.map(model => ({
       id: model.id,
       name: model.name,
@@ -134,6 +134,7 @@ router.get(
       priority: model.priority,
       contextWindow: model.contextWindow,
       provider: model.provider,
+      apiKeyEncrypted: model.apiKeyEncrypted, // 包含API密钥字段
     }));
 
     const response: ApiResponse = {
@@ -190,7 +191,7 @@ router.get(
       return;
     }
 
-    // 过滤返回的字段，不包含敏感信息
+    // 过滤返回的字段，包含解密后的API密钥
     const filteredPrimaryModel = {
       id: primaryModel.id,
       name: primaryModel.name,
@@ -201,6 +202,7 @@ router.get(
       priority: primaryModel.priority,
       contextWindow: primaryModel.contextWindow,
       provider: primaryModel.provider,
+      apiKeyEncrypted: primaryModel.apiKeyEncrypted, // 包含API密钥字段
     };
 
     const response: ApiResponse = {
@@ -364,10 +366,24 @@ router.get(
       ]
     });
 
+    // 过滤返回的字段，包含解密后的API密钥
+    const filteredModels = models.map(model => ({
+      id: model.id,
+      name: model.name,
+      displayName: model.displayName,
+      modelType: model.modelType,
+      parameters: model.parameters,
+      role: model.role,
+      priority: model.priority,
+      contextWindow: model.contextWindow,
+      provider: model.provider,
+      apiKeyEncrypted: model.apiKeyEncrypted, // 包含API密钥字段
+    }));
+
     const response: ApiResponse = {
       success: true,
       message: `获取${type}类型AI模型成功`,
-      data: models,
+      data: filteredModels,
     };
 
     res.json(response);
