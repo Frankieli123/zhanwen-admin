@@ -25,6 +25,7 @@ export interface AIModelConfig {
     name: string;
     displayName: string;
     baseUrl: string;
+    apiUrl?: string;
     supportedModels: string[];
   };
 }
@@ -135,16 +136,8 @@ export class AIConfigService {
 
       const primary = config.primary;
       
-      // 构建完整的API URL
-      let apiUrl = primary.provider.baseUrl;
-      if (primary.provider.name === 'deepseek') {
-        apiUrl = apiUrl.endsWith('/') ? apiUrl + 'chat/completions' : apiUrl + '/chat/completions';
-      } else if (primary.provider.name === 'openai') {
-        apiUrl = apiUrl.endsWith('/') ? apiUrl + 'chat/completions' : apiUrl + '/chat/completions';
-      }
-
       return {
-        apiUrl,
+        apiUrl: primary.provider.apiUrl || primary.provider.baseUrl,
         apiKey: primary.apiKeyEncrypted || '',
         model: primary.name,
         parameters: primary.parameters,
@@ -161,6 +154,17 @@ export class AIConfigService {
   static clearCache(): void {
     configCache.clear();
     console.log('AIConfigService: 配置缓存已清除');
+    
+    // 触发缓存清除事件，通知其他组件
+    window.dispatchEvent(new CustomEvent('ai-config-cache-cleared'));
+  }
+
+  /**
+   * 强制刷新配置（忽略缓存）
+   */
+  static async forceRefresh(): Promise<AIConfiguration> {
+    configCache.clear();
+    return this.getActiveConfiguration(false);
   }
 
   /**

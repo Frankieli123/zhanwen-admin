@@ -123,19 +123,41 @@ router.get(
       ]
     });
 
-    // 过滤返回的字段，包含解密后的API密钥
-    const filteredModels = activeModels.map(model => ({
-      id: model.id,
-      name: model.name,
-      displayName: model.displayName,
-      modelType: model.modelType,
-      parameters: model.parameters,
-      role: model.role,
-      priority: model.priority,
-      contextWindow: model.contextWindow,
-      provider: model.provider,
-      apiKeyEncrypted: model.apiKeyEncrypted, // 包含API密钥字段
-    }));
+    // 过滤返回的字段，包含解密后的API密钥和完整API URL
+    const filteredModels = activeModels.map(model => {
+      // 构建完整的API URL - 默认添加兼容OpenAI的格式
+      let fullApiUrl = model.provider.baseUrl;
+      
+      if (model.provider.name === 'deepseek') {
+        // DeepSeek 不需要 /v1
+        fullApiUrl = fullApiUrl.endsWith('/') ? fullApiUrl + 'chat/completions' : fullApiUrl + '/chat/completions';
+      } else {
+        // 其他提供商添加 /v1/chat/completions（兼容OpenAI格式）
+        if (fullApiUrl.endsWith('/')) {
+          fullApiUrl = fullApiUrl + 'v1/chat/completions';
+        } else if (fullApiUrl.endsWith('/v1')) {
+          fullApiUrl = fullApiUrl + '/chat/completions';
+        } else {
+          fullApiUrl = fullApiUrl + '/v1/chat/completions';
+        }
+      }
+
+      return {
+        id: model.id,
+        name: model.name,
+        displayName: model.displayName,
+        modelType: model.modelType,
+        parameters: model.parameters,
+        role: model.role,
+        priority: model.priority,
+        contextWindow: model.contextWindow,
+        provider: {
+          ...model.provider,
+          apiUrl: fullApiUrl, // 添加完整的API URL
+        },
+        apiKeyEncrypted: model.apiKeyEncrypted, // 包含API密钥字段
+      };
+    });
 
     const response: ApiResponse = {
       success: true,

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   List,
   useTable,
@@ -7,40 +7,139 @@ import {
   DeleteButton,
   CreateButton,
 } from "@refinedev/antd";
-import { Table, Space, Tag, Button, Tooltip, message } from "antd";
+import { Table, Space, Tag, Button, Tooltip, message, Switch, InputNumber } from "antd";
 import { ApiOutlined, CheckCircleOutlined, CloseCircleOutlined } from "@ant-design/icons";
 import { aiModelsAPI } from "../../utils/api";
+import { AIConfigService } from "../../services/aiConfigService";
 
 export const AIModelList: React.FC = () => {
-  const { tableProps } = useTable({
+  const { tableProps, tableQueryResult } = useTable({
     syncWithLocation: true,
   });
 
   const [testingConnection, setTestingConnection] = useState<number | null>(null);
+  const [editingPriority, setEditingPriority] = useState<number | null>(null);
+  const [updatingStatus, setUpdatingStatus] = useState<number | null>(null);
+  const [tempPriority, setTempPriority] = useState<number | null>(null);
+  const editingRef = useRef<HTMLDivElement>(null);
+
+  // 监听点击外部区域取消编辑
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (editingPriority && editingRef.current && !editingRef.current.contains(event.target as Node)) {
+        cancelEditPriority();
+      }
+    };
+
+    if (editingPriority) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [editingPriority]);
+
+  // 处理启用/禁用状态切换
+  const handleStatusToggle = async (id: number, currentStatus: boolean) => {
+    try {
+      setUpdatingStatus(id);
+      const response = await aiModelsAPI.updateModel(id, { isActive: !currentStatus });
+      
+      if (response.success) {
+        message.success(`模型已${!currentStatus ? '启用' : '禁用'}`);
+        AIConfigService.clearCache();
+        tableQueryResult?.refetch();
+      } else {
+        message.error(response.message || '状态更新失败');
+      }
+    } catch (error: any) {
+      console.error('状态更新失败:', error);
+      message.error(error.response?.data?.message || '状态更新失败');
+    } finally {
+      setUpdatingStatus(null);
+    }
+  };
+
+  // 处理优先级更新
+  const handlePriorityUpdate = async (id: number, priority: number) => {
+    try {
+      const response = await aiModelsAPI.updateModel(id, { priority });
+      
+      if (response.success) {
+        message.success('优先级已更新');
+        AIConfigService.clearCache();
+        tableQueryResult?.refetch();
+      } else {
+        message.error(response.message || '优先级更新失败');
+      }
+    } catch (error: any) {
+      console.error('优先级更新失败:', error);
+      message.error(error.response?.data?.message || '优先级更新失败');
+    } finally {
+      setEditingPriority(null);
+      setTempPriority(null);
+    }
+  };
+
+  // 开始编辑优先级
+  const startEditPriority = (id: number, currentPriority: number) => {
+    setEditingPriority(id);
+    setTempPriority(currentPriority);
+  };
+
+  // 取消编辑优先级
+  const cancelEditPriority = () => {
+    setEditingPriority(null);
+    setTempPriority(null);
+  };
 
   const columns = [
     {
       title: "ID",
       dataIndex: "id",
       key: "id",
-      width: 80,
+      width: 60,
+      align: "center" as const,
+    },
+    {
+      title: "状态",
+      dataIndex: "isActive",
+      key: "isActive",
+      width: 90,
+      align: "center" as const,
+      render: (value: boolean, record: any) => (
+        <Switch
+          checked={value}
+          loading={updatingStatus === record.id}
+          onChange={() => handleStatusToggle(record.id, value)}
+          checkedChildren="启用"
+          unCheckedChildren="禁用"
+          size="small"
+        />
+      ),
     },
     {
       title: "模型名称",
       dataIndex: "displayName",
       key: "displayName",
+      width: 180,
       render: (value: string) => <strong>{value}</strong>,
     },
     {
       title: "提供商",
       dataIndex: ["provider", "displayName"],
       key: "provider",
+      width: 120,
+      align: "center" as const,
       render: (value: string) => <Tag color="green">{value}</Tag>,
     },
     {
       title: "模型类型",
       dataIndex: "modelType",
       key: "modelType",
+      width: 100,
+      align: "center" as const,
       render: (value: string) => {
         const typeMap: Record<string, { color: string; text: string }> = {
           chat: { color: "blue", text: "对话" },
@@ -52,72 +151,104 @@ export const AIModelList: React.FC = () => {
       },
     },
     {
-      title: "角色",
-      dataIndex: "role",
-      key: "role",
-      render: (value: string) => {
-        const roleMap: Record<string, { color: string; text: string }> = {
-          primary: { color: "red", text: "主模型" },
-          secondary: { color: "orange", text: "备用" },
-          disabled: { color: "default", text: "禁用" },
-        };
-        const config = roleMap[value] || { color: "default", text: value };
-        return <Tag color={config.color}>{config.text}</Tag>;
-      },
-    },
-    {
       title: "优先级",
       dataIndex: "priority",
       key: "priority",
-      width: 100,
+      width: 150,
+      align: "center" as const,
       sorter: true,
-    },
-    {
-      title: "状态",
-      dataIndex: "isActive",
-      key: "isActive",
-      render: (value: boolean) => (
-        <Tag
-          icon={value ? <CheckCircleOutlined /> : <CloseCircleOutlined />}
-          color={value ? "success" : "default"}
-        >
-          {value ? "活跃" : "禁用"}
-        </Tag>
+      render: (value: number, record: any) => (
+        <div onClick={(e) => e.stopPropagation()}>
+          {editingPriority === record.id ? (
+            <div ref={editingRef}>
+              <Space size="small">
+                <InputNumber
+                  size="small"
+                  min={1}
+                  max={1000}
+                  value={tempPriority}
+                  onChange={(val) => setTempPriority(val)}
+                  style={{ width: 70 }}
+                />
+                <Button
+                  type="primary"
+                  size="small"
+                  onClick={() => {
+                    if (tempPriority && tempPriority !== value) {
+                      handlePriorityUpdate(record.id, tempPriority);
+                    } else {
+                      cancelEditPriority();
+                    }
+                  }}
+                >
+                  保存
+                </Button>
+              </Space>
+            </div>
+          ) : (
+            <span
+              onClick={() => startEditPriority(record.id, value)}
+              style={{ 
+                cursor: 'pointer', 
+                padding: '4px 8px',
+                borderRadius: '4px',
+                border: '1px solid transparent',
+                display: 'inline-block',
+                minWidth: '40px',
+                textAlign: 'center'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#f0f0f0';
+                e.currentTarget.style.border = '1px solid #d9d9d9';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent';
+                e.currentTarget.style.border = '1px solid transparent';
+              }}
+            >
+              {value}
+            </span>
+          )}
+        </div>
       ),
     },
     {
       title: "成本/1K tokens",
       dataIndex: "costPer1kTokens",
       key: "costPer1kTokens",
+      width: 130,
+      align: "right" as const,
       render: (value: number | string) => {
         const numValue = typeof value === 'string' ? parseFloat(value) : value;
         return `¥${(numValue || 0).toFixed(4)}`;
       },
-      width: 120,
     },
     {
       title: "上下文窗口",
       dataIndex: "contextWindow",
       key: "contextWindow",
+      width: 130,
+      align: "right" as const,
       render: (value: number | string) => {
         const numValue = typeof value === 'string' ? parseInt(value) : value;
         return `${(numValue || 0).toLocaleString()} tokens`;
       },
-      width: 120,
     },
     {
       title: "创建时间",
       dataIndex: "createdAt",
       key: "createdAt",
+      width: 150,
+      align: "center" as const,
       render: (value: string) => new Date(value).toLocaleString("zh-CN"),
-      width: 160,
     },
     {
       title: "操作",
       dataIndex: "actions",
       key: "actions",
       fixed: "right" as const,
-      width: 200,
+      width: 160,
+      align: "center" as const,
       render: (_, record: any) => (
         <Space size="small">
           <Tooltip title="测试连接">
@@ -131,7 +262,15 @@ export const AIModelList: React.FC = () => {
           </Tooltip>
           <ShowButton hideText size="small" recordItemId={record.id} />
           <EditButton hideText size="small" recordItemId={record.id} />
-          <DeleteButton hideText size="small" recordItemId={record.id} />
+          <DeleteButton 
+            hideText 
+            size="small" 
+            recordItemId={record.id}
+            onSuccess={() => {
+              // 删除成功后清除AI配置缓存
+              AIConfigService.clearCache();
+            }}
+          />
         </Space>
       ),
     },

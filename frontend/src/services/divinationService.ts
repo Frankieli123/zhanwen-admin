@@ -245,15 +245,8 @@ export class DivinationService {
    * 获取特定模型的API配置
    */
   private static getModelAPIConfig(model: AIModelConfig) {
-    let apiUrl = model.provider.baseUrl;
-    if (model.provider.name === 'deepseek') {
-      apiUrl = apiUrl.endsWith('/') ? apiUrl + 'chat/completions' : apiUrl + '/chat/completions';
-    } else if (model.provider.name === 'openai') {
-      apiUrl = apiUrl.endsWith('/') ? apiUrl + 'chat/completions' : apiUrl + '/chat/completions';
-    }
-
     return {
-      apiUrl,
+      apiUrl: model.provider.apiUrl || model.provider.baseUrl,
       apiKey: model.apiKeyEncrypted || '',
       model: model.name,
       parameters: model.parameters,
