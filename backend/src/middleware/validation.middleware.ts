@@ -15,9 +15,14 @@ export const validate = (schema: {
 
     // 验证请求体
     if (schema.body) {
-      const { error } = schema.body.validate(req.body);
+      const { error, value } = schema.body.validate(req.body, { allowUnknown: false, stripUnknown: true });
       if (error) {
+        console.log('Validation error details:', error.details);
+        console.log('Request body:', JSON.stringify(req.body, null, 2));
         errors.push(`Body: ${error.details.map(d => d.message).join(', ')}`);
+      } else {
+        // 使用验证后的值替换原始请求体
+        req.body = value;
       }
     }
 

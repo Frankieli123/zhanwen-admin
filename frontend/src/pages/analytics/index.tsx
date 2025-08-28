@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from "react";
-import { Card, Row, Col, Statistic, Table, Tag, Spin } from "antd";
+import { Card, Row, Col, Statistic, Table, Tag, Spin, Button, Space } from "antd";
 import {
   UserOutlined,
   RobotOutlined,
   FileTextOutlined,
   DatabaseOutlined,
   TrophyOutlined,
-  ClockCircleOutlined
+  ClockCircleOutlined,
+  LineChartOutlined,
+  ApiOutlined
 } from "@ant-design/icons";
+import { useNavigate } from "react-router-dom";
 import { analyticsAPI } from "../../utils/api";
 
 export const Analytics: React.FC = () => {
@@ -15,6 +18,7 @@ export const Analytics: React.FC = () => {
   const [hexagramStats, setHexagramStats] = useState<any>(null);
   const [modelPerformance, setModelPerformance] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -154,6 +158,32 @@ export const Analytics: React.FC = () => {
 
   return (
     <div style={{ padding: '24px' }}>
+      {/* 页面标题和操作按钮 */}
+      <Card style={{ marginBottom: 16 }}>
+        <Row justify="space-between" align="middle">
+          <Col>
+            <h2 style={{ margin: 0 }}>数据分析中心</h2>
+          </Col>
+          <Col>
+            <Space>
+              <Button 
+                type="primary" 
+                icon={<LineChartOutlined />}
+                onClick={() => navigate('/analytics/usage')}
+              >
+                使用数据分析
+              </Button>
+              <Button 
+                icon={<ApiOutlined />}
+                onClick={() => navigate('/api-keys/stats')}
+              >
+                API Key统计
+              </Button>
+            </Space>
+          </Col>
+        </Row>
+      </Card>
+
       <Row gutter={[16, 16]}>
         {/* 概览统计 */}
         <Col span={6}>

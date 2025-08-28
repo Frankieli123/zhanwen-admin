@@ -33,16 +33,24 @@ const apiKeyValidation = {
         'string.max': 'API Key名称不能超过100个字符',
         'any.required': 'API Key名称是必填项',
       }),
-      permissions: Joi.array().items(Joi.string()).default([]).messages({
+      permissions: Joi.array().items(Joi.string()).optional().default([]).messages({
         'array.base': '权限必须是数组格式',
       }),
-      description: Joi.string().max(500).optional().allow('').messages({
+      description: Joi.string().max(500).optional().allow('', null).messages({
         'string.max': '描述不能超过500个字符',
       }),
-      expiresAt: Joi.date().optional().allow(null).messages({
-        'date.base': '过期时间格式不正确',
+      isActive: Joi.boolean().optional().default(true).messages({
+        'boolean.base': '状态必须是布尔值',
       }),
-    }),
+      expiresAt: Joi.alternatives().try(
+        Joi.date(),
+        Joi.string().isoDate(),
+        Joi.allow(null)
+      ).optional().messages({
+        'date.base': '过期时间格式不正确',
+        'string.isoDate': '过期时间必须是有效的ISO日期格式',
+      }),
+    }).unknown(false),
   },
   update: {
     body: Joi.object({
@@ -53,16 +61,21 @@ const apiKeyValidation = {
       permissions: Joi.array().items(Joi.string()).optional().messages({
         'array.base': '权限必须是数组格式',
       }),
-      description: Joi.string().max(500).optional().allow('').messages({
+      description: Joi.string().max(500).optional().allow('', null).messages({
         'string.max': '描述不能超过500个字符',
       }),
       isActive: Joi.boolean().optional().messages({
         'boolean.base': '状态必须是布尔值',
       }),
-      expiresAt: Joi.date().optional().allow(null).messages({
+      expiresAt: Joi.alternatives().try(
+        Joi.date(),
+        Joi.string().isoDate(),
+        Joi.allow(null)
+      ).optional().messages({
         'date.base': '过期时间格式不正确',
+        'string.isoDate': '过期时间必须是有效的ISO日期格式',
       }),
-    }),
+    }).unknown(false),
   },
 };
 

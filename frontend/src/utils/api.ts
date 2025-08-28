@@ -456,6 +456,83 @@ export const apiKeysAPI = {
   getApiKeyUsageStats: (days?: number) => api.get('/api-keys/usage-stats', { params: { days } }),
 };
 
+// 使用数据分析API
+export const usageAPI = {
+  // 获取API调用日志
+  getApiLogs: (params?: {
+    apiKeyId?: number;
+    clientId?: string;
+    startDate?: string;
+    endDate?: string;
+    page?: number;
+    limit?: number;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+  }) => api.getPaginated('/usage/logs', params),
+
+  // 获取使用指标
+  getUsageMetrics: (params?: {
+    apiKeyId?: number;
+    clientId?: string;
+    period?: 'day' | 'week' | 'month' | 'year';
+    startDate?: string;
+    endDate?: string;
+    groupBy?: 'hour' | 'day' | 'week' | 'month';
+  }) => api.get('/usage/metrics', { params }),
+
+  // 获取客户端统计
+  getClientStats: (params?: {
+    apiKeyId?: number;
+    period?: number;
+    top?: number;
+  }) => api.get('/usage/clients', { params }),
+
+  // 获取实时统计
+  getRealtimeStats: () => api.get('/usage/realtime'),
+
+  // 获取错误分析
+  getErrorAnalysis: (params?: {
+    apiKeyId?: number;
+    period?: number;
+    groupBy?: 'status' | 'endpoint' | 'client';
+  }) => api.get('/usage/errors', { params }),
+
+  // 获取性能分析
+  getPerformanceMetrics: (params?: {
+    apiKeyId?: number;
+    period?: number;
+    percentiles?: number[];
+  }) => api.get('/usage/performance', { params }),
+
+  // 获取API端点统计
+  getEndpointStats: (params?: {
+    apiKeyId?: number;
+    period?: number;
+    top?: number;
+  }) => api.get('/usage/endpoints', { params }),
+
+  // 获取地理位置分析
+  getGeoAnalysis: (params?: {
+    apiKeyId?: number;
+    period?: number;
+  }) => api.get('/usage/geo', { params }),
+
+  // 获取设备分析
+  getDeviceAnalysis: (params?: {
+    apiKeyId?: number;
+    period?: number;
+  }) => api.get('/usage/devices', { params }),
+
+  // 导出报告
+  exportReport: (params: {
+    type: 'logs' | 'metrics' | 'summary';
+    format: 'csv' | 'json' | 'pdf';
+    startDate?: string;
+    endDate?: string;
+    apiKeyId?: number;
+  }) => api.get('/usage/export', { params, responseType: 'blob' }),
+};
+
 // 导出 TokenManager 供其他模块使用
 export { TokenManager };
 

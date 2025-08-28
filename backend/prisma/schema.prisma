@@ -148,6 +148,8 @@ model ApiCallLog {
   modelId        Int?     @map("model_id")
   requestId      String?  @map("request_id") @db.VarChar(100)
   userId         String?  @map("user_id") @db.VarChar(100)
+  clientId       String?  @map("client_id") @db.VarChar(100)
+  sessionId      String?  @map("session_id") @db.VarChar(100)
   platform       String?  @db.VarChar(20)
   promptHash     String?  @map("prompt_hash") @db.VarChar(64)
   tokensUsed     Int?     @map("tokens_used")
@@ -156,9 +158,17 @@ model ApiCallLog {
   status         String?  @db.VarChar(20)
   errorMessage   String?  @map("error_message")
   metadata       Json     @default("{}")
+  clientInfo     Json?    @map("client_info")
+  timestamp      DateTime?
   createdAt      DateTime @default(now()) @map("created_at")
   model          AiModel? @relation(fields: [modelId], references: [id])
+  client         ClientApp? @relation(fields: [clientId], references: [clientId], onDelete: SetNull)
 
+  @@index([clientId])
+  @@index([sessionId])
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
   @@map("api_call_logs")
 }
 
@@ -166,12 +176,21 @@ model UsageStatistic {
   id          BigInt   @id @default(autoincrement())
   date        DateTime @db.Date
   platform    String   @db.VarChar(20)
+  clientId    String?  @map("client_id") @db.VarChar(100)
+  sessionId   String?  @map("session_id") @db.VarChar(100)
+  userId      String?  @map("user_id") @db.VarChar(100)
   metricName  String   @map("metric_name") @db.VarChar(100)
   metricValue BigInt   @map("metric_value")
   metadata    Json     @default("{}")
+  clientInfo  Json?    @map("client_info")
   createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  client      ClientApp? @relation(fields: [clientId], references: [clientId])
 
-  @@unique([date, platform, metricName])
+  @@unique([date, platform, clientId, metricName])
+  @@index([date, metricName])
+  @@index([clientId])
+  @@index([platform])
   @@map("usage_statistics")
 }
 
@@ -194,17 +213,18 @@ model AdminUser {
 }
 
 model ApiKey {
-  id          Int       @id @default(autoincrement())
-  name        String    @db.VarChar(100)
-  key         String    @unique @db.VarChar(255)
-  permissions String[]  @default([])
-  isActive    Boolean   @default(true) @map("is_active")
-  expiresAt   DateTime? @map("expires_at")
-  lastUsedAt  DateTime? @map("last_used_at")
-  usageCount  Int       @default(0) @map("usage_count")
+  id          Int         @id @default(autoincrement())
+  name        String      @db.VarChar(100)
+  key         String      @unique @db.VarChar(255)
+  permissions String[]    @default([])
+  isActive    Boolean     @default(true) @map("is_active")
+  expiresAt   DateTime?   @map("expires_at")
+  lastUsedAt  DateTime?   @map("last_used_at")
+  usageCount  Int         @default(0) @map("usage_count")
   description String?
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+  clientApps  ClientApp[]
 
   @@map("api_keys")
 }
@@ -223,4 +243,40 @@ model OperationLog {
   user         AdminUser? @relation(fields: [userId], references: [id])
 
   @@map("operation_logs")
+}
+
+model ClientApp {
+  id              Int              @id @default(autoincrement())
+  clientId        String           @unique @map("client_id") @db.VarChar(100)
+  name            String           @db.VarChar(100)
+  description     String?
+  platform        String           @db.VarChar(20)
+  version         String?          @db.VarChar(50)
+  owner           String?          @db.VarChar(100)
+  contactEmail    String?          @map("contact_email") @db.VarChar(100)
+  isActive        Boolean          @default(true) @map("is_active")
+  apiKeyId        Int?             @map("api_key_id")
+  userAgent       String?          @map("user_agent")
+  language        String?          @db.VarChar(10)
+  timezone        String?          @db.VarChar(50)
+  screenInfo      Json?            @map("screen_info")
+  deviceInfo      Json?            @map("device_info")
+  networkInfo     Json?            @map("network_info")
+  appVersion      String?          @map("app_version") @db.VarChar(20)
+  buildTime       DateTime?        @map("build_time")
+  firstSeen       DateTime         @default(now()) @map("first_seen")
+  lastActiveAt    DateTime?        @map("last_active_at")
+  totalRequests   Int              @default(0) @map("total_requests")
+  totalTokens     BigInt           @default(0) @map("total_tokens")
+  totalCost       Decimal          @default(0) @map("total_cost") @db.Decimal(10, 6)
+  metadata        Json             @default("{}")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  apiKey          ApiKey?          @relation(fields: [apiKeyId], references: [id])
+  apiCallLogs     ApiCallLog[]
+  usageStatistics UsageStatistic[]
+
+  @@index([platform])
+  @@index([lastActiveAt])
+  @@map("client_apps")
 }

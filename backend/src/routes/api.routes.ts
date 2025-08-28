@@ -5,6 +5,7 @@ import configsRoutes from './configs.routes';
 import hexagramsRoutes from './hexagrams.routes';
 import analyticsRoutes from './analytics.routes';
 import apiKeysRoutes from './apiKeys.routes';
+import usageRoutes from './usage.routes';
 
 const router = Router();
 
@@ -15,5 +16,6 @@ router.use(configsRoutes);
 router.use(hexagramsRoutes);
 router.use(analyticsRoutes);
 router.use(apiKeysRoutes);
+router.use(usageRoutes);
 
 export default router;

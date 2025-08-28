@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@ant-design/icons": "^5.2.6",
+    "@ant-design/plots": "^2.6.3",
     "@refinedev/antd": "^5.37.4",
     "@refinedev/core": "^4.47.1",
     "@refinedev/react-hook-form": "^4.8.14",
@@ -22,7 +23,7 @@
     "antd": "^5.12.8",
     "axios": "^1.6.2",
     "crypto-js": "^4.2.0",
-    "dayjs": "^1.11.10",
+    "dayjs": "^1.11.15",
     "lodash": "^4.17.21",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

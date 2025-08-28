@@ -118,8 +118,8 @@ router.get(
         }
       },
       orderBy: [
-        { role: 'asc' },
-        { priority: 'asc' }
+        { priority: 'asc' },
+        { displayName: 'asc' }
       ]
     });
 
@@ -595,6 +595,463 @@ router.get(
       success: true,
       message: '获取卦象详情成功',
       data: hexagram,
+    };
+
+    res.json(response);
+  })
+);
+
+/**
+ * @swagger
+ * /public/usage/log:
+ *   post:
+ *     summary: 记录API调用日志（公开接口）
+ *     tags: [Public API]
+ *     security:
+ *       - apiKey: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               modelId:
+ *                 type: integer
+ *                 description: AI模型ID
+ *               requestId:
+ *                 type: string
+ *                 description: 请求ID
+ *               userId:
+ *                 type: string
+ *                 description: 用户ID
+ *               platform:
+ *                 type: string
+ *                 description: 平台类型
+ *               promptHash:
+ *                 type: string
+ *                 description: 提示词哈希
+ *               tokensUsed:
+ *                 type: integer
+ *                 description: 使用的token数量
+ *               cost:
+ *                 type: number
+ *                 description: 成本
+ *               responseTimeMs:
+ *                 type: integer
+ *                 description: 响应时间（毫秒）
+ *               status:
+ *                 type: string
+ *                 description: 状态
+ *               errorMessage:
+ *                 type: string
+ *                 description: 错误信息
+ *               metadata:
+ *                 type: object
+ *                 description: 元数据
+ *     responses:
+ *       200:
+ *         description: 记录成功
+ *       401:
+ *         description: API Key 无效
+ */
+router.post(
+  '/public/usage/log',
+  authenticateApiKey,
+  requireApiPermission('usage:write'),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const {
+      modelId,
+      requestId,
+      userId,
+      clientId,
+      sessionId,
+      platform,
+      promptHash,
+      tokensUsed,
+      cost,
+      responseTimeMs,
+      status,
+      errorMessage,
+      metadata = {},
+      clientInfo = {},
+      timestamp
+    } = req.body;
+
+    // 如果提供了clientId，更新客户端活跃时间和统计
+    if (clientId && clientInfo) {
+      const updateData: any = {
+        lastActiveAt: new Date(),
+        totalRequests: { increment: 1 },
+        totalTokens: { increment: tokensUsed ? BigInt(tokensUsed) : BigInt(0) },
+        totalCost: { increment: cost ? parseFloat(cost.toString()) : 0 },
+      };
+
+      // 更新客户端环境信息
+      if (clientInfo.userAgent) updateData.userAgent = clientInfo.userAgent;
+      if (clientInfo.language) updateData.language = clientInfo.language;
+      if (clientInfo.timezone) updateData.timezone = clientInfo.timezone;
+      if (clientInfo.screen) updateData.screenInfo = clientInfo.screen;
+      if (clientInfo.deviceMemory || clientInfo.hardwareConcurrency) {
+        updateData.deviceInfo = {
+          deviceMemory: clientInfo.deviceMemory,
+          hardwareConcurrency: clientInfo.hardwareConcurrency
+        };
+      }
+      if (clientInfo.connection) updateData.networkInfo = clientInfo.connection;
+      if (clientInfo.appVersion) updateData.appVersion = clientInfo.appVersion;
+      if (clientInfo.buildTime) updateData.buildTime = new Date(clientInfo.buildTime);
+
+      await prisma.clientApp.upsert({
+        where: { clientId },
+        update: updateData,
+        create: {
+          clientId,
+          name: `自动创建-${clientId}`,
+          platform: platform || clientInfo.platform || 'unknown',
+          userAgent: clientInfo.userAgent,
+          language: clientInfo.language,
+          timezone: clientInfo.timezone,
+          screenInfo: clientInfo.screen || {},
+          deviceInfo: {
+            deviceMemory: clientInfo.deviceMemory,
+            hardwareConcurrency: clientInfo.hardwareConcurrency
+          },
+          networkInfo: clientInfo.connection || {},
+          appVersion: clientInfo.appVersion,
+          buildTime: clientInfo.buildTime ? new Date(clientInfo.buildTime) : null,
+          lastActiveAt: new Date(),
+          totalRequests: 1,
+          totalTokens: tokensUsed ? BigInt(tokensUsed) : BigInt(0),
+          totalCost: cost ? parseFloat(cost.toString()) : 0,
+        },
+      });
+    }
+
+    await prisma.apiCallLog.create({
+      data: {
+        modelId: modelId ? parseInt(modelId) : null,
+        requestId,
+        userId,
+        sessionId,
+        platform,
+        promptHash,
+        tokensUsed: tokensUsed ? parseInt(tokensUsed) : null,
+        cost: cost ? parseFloat(cost) : null,
+        responseTimeMs: responseTimeMs ? parseInt(responseTimeMs) : null,
+        status,
+        errorMessage,
+        metadata,
+        clientInfo,
+        timestamp: timestamp ? new Date(timestamp) : null,
+      },
+    });
+
+    const response: ApiResponse = {
+      success: true,
+      message: 'API调用日志记录成功',
+    };
+
+    res.json(response);
+  })
+);
+
+/**
+ * @swagger
+ * /public/usage/metrics:
+ *   post:
+ *     summary: 上报使用指标（公开接口）
+ *     tags: [Public API]
+ *     security:
+ *       - apiKey: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               date:
+ *                 type: string
+ *                 format: date
+ *                 description: 日期
+ *               platform:
+ *                 type: string
+ *                 description: 平台类型
+ *               metrics:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     name:
+ *                       type: string
+ *                       description: 指标名称
+ *                     value:
+ *                       type: integer
+ *                       description: 指标值
+ *                     metadata:
+ *                       type: object
+ *                       description: 元数据
+ *     responses:
+ *       200:
+ *         description: 上报成功
+ */
+router.post(
+  '/public/usage/metrics',
+  authenticateApiKey,
+  requireApiPermission('usage:write'),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const { date, platform, clientId, metrics } = req.body;
+
+    if (!Array.isArray(metrics)) {
+      res.status(400).json({
+        success: false,
+        message: 'metrics必须是数组格式',
+        code: 'INVALID_METRICS_FORMAT'
+      });
+      return;
+    }
+
+    const metricsData = metrics.map((metric: any) => ({
+      date: new Date(date),
+      platform,
+      clientId: clientId || metric.metadata?.clientId,
+      sessionId: metric.metadata?.sessionId,
+      userId: metric.metadata?.userId,
+      metricName: metric.name,
+      metricValue: BigInt(metric.value),
+      metadata: metric.metadata || {},
+      clientInfo: metric.clientInfo || {},
+    }));
+
+    // 使用upsert来处理重复数据
+    for (const metricData of metricsData) {
+      await prisma.usageStatistic.upsert({
+        where: {
+          date_platform_clientId_metricName: {
+            date: metricData.date,
+            platform: metricData.platform,
+            clientId: metricData.clientId,
+            metricName: metricData.metricName,
+          },
+        },
+        update: {
+          metricValue: metricData.metricValue,
+          metadata: metricData.metadata,
+        },
+        create: metricData,
+      });
+    }
+
+    const response: ApiResponse = {
+      success: true,
+      message: '使用指标上报成功',
+    };
+
+    res.json(response);
+  })
+);
+
+/**
+ * @swagger
+ * /public/usage/batch:
+ *   post:
+ *     summary: 批量上报使用数据（公开接口）
+ *     tags: [Public API]
+ *     security:
+ *       - apiKey: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               logs:
+ *                 type: array
+ *                 description: API调用日志数组
+ *               metrics:
+ *                 type: array
+ *                 description: 使用指标数组
+ *     responses:
+ *       200:
+ *         description: 批量上报成功
+ */
+router.post(
+  '/public/usage/batch',
+  authenticateApiKey,
+  requireApiPermission('usage:write'),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const { logs = [], metrics = [] } = req.body;
+
+    const results = {
+      logs: { success: 0, failed: 0 },
+      metrics: { success: 0, failed: 0 },
+    };
+
+    // 批量处理API调用日志
+    if (logs.length > 0) {
+      try {
+        // 先处理客户端信息更新
+        for (const log of logs) {
+          if (log.clientId && log.clientInfo) {
+            const updateData: any = {
+              lastActiveAt: new Date(),
+              totalRequests: { increment: 1 },
+              totalTokens: { increment: log.tokensUsed ? BigInt(log.tokensUsed) : BigInt(0) },
+              totalCost: { increment: log.cost ? parseFloat(log.cost.toString()) : 0 },
+            };
+
+            // 更新客户端环境信息
+            if (log.clientInfo.userAgent) updateData.userAgent = log.clientInfo.userAgent;
+            if (log.clientInfo.language) updateData.language = log.clientInfo.language;
+            if (log.clientInfo.timezone) updateData.timezone = log.clientInfo.timezone;
+            if (log.clientInfo.screen) updateData.screenInfo = log.clientInfo.screen;
+            if (log.clientInfo.deviceMemory || log.clientInfo.hardwareConcurrency) {
+              updateData.deviceInfo = {
+                deviceMemory: log.clientInfo.deviceMemory,
+                hardwareConcurrency: log.clientInfo.hardwareConcurrency
+              };
+            }
+            if (log.clientInfo.connection) updateData.networkInfo = log.clientInfo.connection;
+            if (log.clientInfo.appVersion) updateData.appVersion = log.clientInfo.appVersion;
+            if (log.clientInfo.buildTime) updateData.buildTime = new Date(log.clientInfo.buildTime);
+
+            await prisma.clientApp.upsert({
+              where: { clientId: log.clientId },
+              update: updateData,
+              create: {
+                clientId: log.clientId,
+                name: `自动创建-${log.clientId}`,
+                platform: log.platform || log.clientInfo.platform || 'unknown',
+                userAgent: log.clientInfo.userAgent,
+                language: log.clientInfo.language,
+                timezone: log.clientInfo.timezone,
+                screenInfo: log.clientInfo.screen || {},
+                deviceInfo: {
+                  deviceMemory: log.clientInfo.deviceMemory,
+                  hardwareConcurrency: log.clientInfo.hardwareConcurrency
+                },
+                networkInfo: log.clientInfo.connection || {},
+                appVersion: log.clientInfo.appVersion,
+                buildTime: log.clientInfo.buildTime ? new Date(log.clientInfo.buildTime) : null,
+                lastActiveAt: new Date(),
+                totalRequests: 1,
+                totalTokens: log.tokensUsed ? BigInt(log.tokensUsed) : BigInt(0),
+                totalCost: log.cost ? parseFloat(log.cost.toString()) : 0,
+              },
+            });
+          }
+        }
+
+        const logData = logs.map((log: any) => ({
+          modelId: log.modelId ? parseInt(log.modelId) : null,
+          requestId: log.requestId,
+          userId: log.userId,
+          clientId: log.clientId,
+          sessionId: log.sessionId,
+          platform: log.platform,
+          promptHash: log.promptHash,
+          tokensUsed: log.tokensUsed ? parseInt(log.tokensUsed) : null,
+          cost: log.cost ? parseFloat(log.cost) : null,
+          responseTimeMs: log.responseTimeMs ? parseInt(log.responseTimeMs) : null,
+          status: log.status,
+          errorMessage: log.errorMessage,
+          metadata: log.metadata || {},
+          clientInfo: log.clientInfo || {},
+          timestamp: log.timestamp ? new Date(log.timestamp) : null,
+        }));
+
+        await prisma.apiCallLog.createMany({
+          data: logData,
+          skipDuplicates: true,
+        });
+        results.logs.success = logs.length;
+      } catch (error) {
+        results.logs.failed = logs.length;
+      }
+    }
+
+    // 批量处理使用指标
+    if (metrics.length > 0) {
+      for (const metric of metrics) {
+        try {
+          // 处理客户端信息更新
+          if (metric.metadata?.clientId && metric.clientInfo) {
+            await prisma.clientApp.upsert({
+              where: { clientId: metric.metadata.clientId },
+              update: {
+                lastActiveAt: new Date(),
+                userAgent: metric.clientInfo.userAgent,
+                language: metric.clientInfo.language,
+                timezone: metric.clientInfo.timezone,
+                screenInfo: metric.clientInfo.screen || {},
+                deviceInfo: {
+                  deviceMemory: metric.clientInfo.deviceMemory,
+                  hardwareConcurrency: metric.clientInfo.hardwareConcurrency
+                },
+                networkInfo: metric.clientInfo.connection || {},
+                appVersion: metric.clientInfo.appVersion,
+              },
+              create: {
+                clientId: metric.metadata.clientId,
+                name: `自动创建-${metric.metadata.clientId}`,
+                platform: metric.metadata.platform || 'unknown',
+                userAgent: metric.clientInfo.userAgent,
+                language: metric.clientInfo.language,
+                timezone: metric.clientInfo.timezone,
+                screenInfo: metric.clientInfo.screen || {},
+                deviceInfo: {
+                  deviceMemory: metric.clientInfo.deviceMemory,
+                  hardwareConcurrency: metric.clientInfo.hardwareConcurrency
+                },
+                networkInfo: metric.clientInfo.connection || {},
+                appVersion: metric.clientInfo.appVersion,
+                lastActiveAt: new Date(),
+                totalRequests: 0,
+                totalTokens: BigInt(0),
+                totalCost: 0,
+              },
+            });
+          }
+
+          await prisma.usageStatistic.upsert({
+            where: {
+              date_platform_clientId_metricName: {
+                date: new Date(metric.date),
+                platform: metric.metadata?.platform || metric.platform,
+                clientId: metric.metadata?.clientId || metric.clientId,
+                metricName: metric.name,
+              },
+            },
+            update: {
+              metricValue: { increment: BigInt(metric.value) },
+              metadata: metric.metadata || {},
+              clientInfo: metric.clientInfo || {},
+            },
+            create: {
+              date: new Date(metric.date),
+              platform: metric.metadata?.platform || metric.platform,
+              clientId: metric.metadata?.clientId || metric.clientId,
+              sessionId: metric.metadata?.sessionId,
+              userId: metric.metadata?.userId,
+              metricName: metric.name,
+              metricValue: BigInt(metric.value),
+              metadata: metric.metadata || {},
+              clientInfo: metric.clientInfo || {},
+            },
+          });
+          results.metrics.success++;
+        } catch (error) {
+          results.metrics.failed++;
+        }
+      }
+    }
+
+    const response: ApiResponse = {
+      success: true,
+      message: '批量上报完成',
+      data: results,
     };
 
     res.json(response);

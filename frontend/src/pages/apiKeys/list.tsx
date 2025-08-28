@@ -170,6 +170,7 @@ export const ApiKeyList: React.FC = () => {
     <List
       breadcrumb={false}
       headerButtons={() => [
+        <CreateButton key="create" />,
         <Button
           key="stats"
           type="primary"

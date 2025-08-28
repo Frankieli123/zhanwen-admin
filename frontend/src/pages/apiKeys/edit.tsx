@@ -15,6 +15,7 @@ const AVAILABLE_PERMISSIONS = [
   { value: 'prompts:read', label: '提示词读取', color: 'orange' },
   { value: 'hexagrams:read', label: '卦象读取', color: 'purple' },
   { value: 'analytics:read', label: '分析数据读取', color: 'cyan' },
+  { value: 'usage:write', label: '使用数据上报', color: 'red' },
 ];
 
 export const ApiKeyEdit: React.FC = () => {
@@ -166,7 +167,13 @@ export const ApiKeyEdit: React.FC = () => {
             getValueProps={(value) => ({
               value: value ? dayjs(value) : undefined,
             })}
-            normalize={(value) => value ? value.toISOString() : null}
+            normalize={(value) => {
+              if (!value) return null;
+              if (dayjs.isDayjs(value)) {
+                return value.toISOString();
+              }
+              return null;
+            }}
           >
             <DatePicker 
               showTime

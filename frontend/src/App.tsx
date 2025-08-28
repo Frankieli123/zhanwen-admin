@@ -43,7 +43,7 @@ import { ConfigList, ConfigCreate, ConfigEdit, ConfigShow } from "./pages/config
 import { ApiKeyList, ApiKeyCreate, ApiKeyEdit, ApiKeyShow, ApiKeyStats } from "./pages/apiKeys";
 
 // 数据分析页面
-import { Analytics } from "./pages/analytics";
+import { UsageAnalytics } from "./pages/analytics/usage";
 
 // 图标
 import {
@@ -207,7 +207,8 @@ function App() {
 
                     {/* 数据分析路由 */}
                     <Route path="/analytics">
-                      <Route index element={<Analytics />} />
+                      <Route index element={<UsageAnalytics />} />
+                      <Route path="usage" element={<UsageAnalytics />} />
                     </Route>
 
                     <Route path="*" element={<ErrorComponent />} />

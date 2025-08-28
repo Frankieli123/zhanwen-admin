@@ -71,6 +71,11 @@ const swaggerOptions = {
           scheme: 'bearer',
           bearerFormat: 'JWT',
         },
+        apiKey: {
+          type: 'apiKey',
+          in: 'header',
+          name: 'X-API-Key',
+        },
       },
     },
   },
@@ -122,7 +127,8 @@ const limiter = rateLimit({
   },
 });
 
-app.use('/api', limiter);
+// 只对公开接口施加限流，管理端不做限流
+app.use('/public', limiter);
 
 // API文档
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
@@ -227,7 +233,7 @@ if (process.env['NODE_ENV'] === 'development') {
 
 // 路由
 app.use('/auth', authRoutes);
-app.use('/api', publicRoutes); // 公开API路由（使用API Key认证）- 必须在前面
+app.use('/', publicRoutes);     // 公开API路由（使用API Key认证）- 必须在前面
 app.use('/api', apiRoutes);     // 管理API路由（使用JWT认证）
 
 // 静态文件服务 - 服务前端构建文件

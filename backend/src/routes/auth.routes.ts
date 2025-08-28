@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { verifyPassword, hashPassword } from '@/utils/encryption';
-import { generateToken, verifyToken } from '@/utils/jwt';
+import { generateToken, decodeToken, refreshToken } from '@/utils/jwt';
 import { asyncHandler, createError } from '@/middleware/error.middleware';
 import { validate } from '@/middleware/validation.middleware';
 import { authenticateToken } from '@/middleware/auth.middleware';
@@ -284,18 +284,38 @@ router.put(
  */
 router.post(
   '/refresh',
-  authenticateToken,
   asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const authHeader = req.headers.authorization || '';
+    const token = authHeader.startsWith('Bearer ')
+      ? authHeader.slice(7)
+      : undefined;
+
+    if (!token) {
+      throw createError('缺少认证token', 401, 'NO_TOKEN');
+    }
+
+    // 验证签名但忽略过期，生成新token
+    let newToken: string;
+    try {
+      newToken = refreshToken(token);
+    } catch (err) {
+      throw createError('Token刷新失败', 401, 'REFRESH_FAILED');
+    }
+
+    // 解析旧token以获取用户ID，并确认用户仍有效
+    const payload = decodeToken(token);
+    if (!payload?.userId) {
+      throw createError('Token无效', 401, 'INVALID_TOKEN');
+    }
+
     const user = await prisma.adminUser.findUnique({
-      where: { id: req.user!.userId },
+      where: { id: payload.userId },
+      select: { id: true, isActive: true },
     });
 
     if (!user || !user.isActive) {
       throw createError('用户不存在或已被禁用', 401, 'USER_INVALID');
     }
-
-    // 生成新的token
-    const newToken = generateToken(user);
 
     const response: ApiResponse = {
       success: true,

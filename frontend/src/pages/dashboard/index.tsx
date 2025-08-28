@@ -19,6 +19,7 @@ interface DashboardStats {
   activeModels: number;
   activeTemplates: number;
   totalConfigs: number;
+  totalHexagrams: number;
   recentActivity: Array<{
     id: number;
     action: string;
@@ -36,6 +37,7 @@ export const Dashboard: React.FC = () => {
     activeModels: 0,
     activeTemplates: 0,
     totalConfigs: 0,
+    totalHexagrams: 0,
     recentActivity: [],
   });
   const [loading, setLoading] = useState(true);
@@ -48,85 +50,78 @@ export const Dashboard: React.FC = () => {
     try {
       setLoading(true);
 
-      // 获取基础统计数据 - 使用现有的分析API
-      try {
-        const analyticsResponse = await analyticsAPI.getOverview();
-        console.log('分析API响应:', analyticsResponse);
+      // 并行获取所有数据
+      const [overviewRes, usageRes, hexagramRes] = await Promise.allSettled([
+        analyticsAPI.getOverview(),
+        analyticsAPI.getUsageStatistics(),
+        analyticsAPI.getHexagramStatistics()
+      ]);
 
-        if (analyticsResponse?.data?.success && analyticsResponse.data.data) {
-          const data = analyticsResponse.data.data;
-          setStats({
-            totalUsers: data.users?.total || 0,
-            totalApiCalls: Math.floor(Math.random() * 10000), // 模拟数据，后续可以添加真实API
-            totalCost: Math.floor(Math.random() * 1000), // 模拟数据，后续可以添加真实API
-            activeModels: data.models?.active || 0,
-            activeTemplates: data.templates?.active || 0,
-            totalConfigs: Math.floor(Math.random() * 50) + 10, // 模拟配置数据
-            recentActivity: data.recentActivity || [
-              {
-                id: 1,
-                action: "创建AI模型",
-                resourceType: "ai_model",
-                user: "admin",
-                timestamp: new Date().toISOString(),
-              },
-              {
-                id: 2,
-                action: "更新提示词模板",
-                resourceType: "prompt_template",
-                user: "admin",
-                timestamp: new Date(Date.now() - 3600000).toISOString(),
-              },
-              {
-                id: 3,
-                action: "修改应用配置",
-                resourceType: "app_config",
-                user: "admin",
-                timestamp: new Date(Date.now() - 7200000).toISOString(),
-              },
-            ],
-          });
-        } else {
-          console.warn("分析API响应格式不正确:", analyticsResponse);
-          throw new Error('API响应格式不正确');
-        }
-      } catch (analyticsError) {
-        console.warn("分析API暂不可用，使用模拟数据:", analyticsError);
-        // 如果分析API不可用，使用模拟数据
-        setStats({
-          totalUsers: 1,
-          totalApiCalls: Math.floor(Math.random() * 10000),
-          totalCost: Math.floor(Math.random() * 1000),
-          activeModels: 2,
-          activeTemplates: 5,
-          totalConfigs: 10,
-          recentActivity: [
-            {
-              id: 1,
-              action: "创建AI模型",
-              resourceType: "ai_model",
-              user: "admin",
-              timestamp: new Date().toISOString(),
-            },
-            {
-              id: 2,
-              action: "更新提示词模板",
-              resourceType: "prompt_template",
-              user: "admin",
-              timestamp: new Date(Date.now() - 3600000).toISOString(),
-            },
-            {
-              id: 3,
-              action: "修改应用配置",
-              resourceType: "app_config",
-              user: "admin",
-              timestamp: new Date(Date.now() - 7200000).toISOString(),
-            },
-          ],
-        });
+      let overview = null;
+      let usageStats = null;
+      let hexagramStats = null;
+
+      // 处理概览数据
+      if (overviewRes.status === 'fulfilled' && overviewRes.value?.success) {
+        overview = overviewRes.value.data;
       }
+
+      // 处理使用统计数据
+      if (usageRes.status === 'fulfilled' && usageRes.value?.success) {
+        usageStats = usageRes.value.data;
+      }
+
+      // 处理卦象统计数据
+      if (hexagramRes.status === 'fulfilled' && hexagramRes.value?.success) {
+        hexagramStats = hexagramRes.value.data;
+      }
+
+      // 设置统计数据
+      setStats({
+        totalUsers: overview?.users?.total || 0,
+        totalApiCalls: usageStats?.summary?.totalRequests || 0,
+        totalCost: 0, // 暂时设为0，等后端添加成本统计
+        activeModels: overview?.models?.active || 0,
+        activeTemplates: overview?.templates?.active || 0,
+        totalConfigs: 0, // 暂时设为0，等后端添加配置统计
+        totalHexagrams: hexagramStats?.total || 0,
+        recentActivity: [
+          {
+            id: 1,
+            action: `共有 ${overview?.models?.total || 0} 个AI模型`,
+            resourceType: "ai_model",
+            user: "系统",
+            timestamp: new Date().toISOString(),
+          },
+          {
+            id: 2,
+            action: `共有 ${overview?.templates?.total || 0} 个提示词模板`,
+            resourceType: "prompt_template",
+            user: "系统",
+            timestamp: new Date().toISOString(),
+          },
+          {
+            id: 3,
+            action: `共有 ${hexagramStats?.total || 0} 个卦象数据`,
+            resourceType: "hexagram",
+            user: "系统",
+            timestamp: new Date().toISOString(),
+          },
+        ],
+      });
     } catch (error) {
       console.error("加载仪表盘数据失败:", error);
+      // 设置默认值
+      setStats({
+        totalUsers: 0,
+        totalApiCalls: 0,
+        totalCost: 0,
+        activeModels: 0,
+        activeTemplates: 0,
+        totalConfigs: 0,
+        totalHexagrams: 0,
+        recentActivity: [],
+      });
     } finally {
       setLoading(false);
     }
@@ -211,10 +206,50 @@ export const Dashboard: React.FC = () => {
           <Col xs={24} sm={12} lg={6}>
             <Card>
               <Statistic
-                title="应用配置"
-                value={stats.totalConfigs}
+                title="卦象数据"
+                value={stats.totalHexagrams}
                 prefix={<SettingOutlined />}
                 loading={loading}
+              />
+            </Card>
+          </Col>
+        </Row>
+
+        {/* 数据统计卡片 */}
+        <Row gutter={[16, 16]}>
+          <Col xs={24} sm={12} lg={8}>
+            <Card>
+              <Statistic
+                title="总API调用数"
+                value={stats.totalApiCalls}
+                prefix={<ApiOutlined />}
+                loading={loading}
+                valueStyle={{ color: '#1890ff' }}
+              />
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} lg={8}>
+            <Card>
+              <Statistic
+                title="总成本"
+                value={stats.totalCost}
+                prefix={<DollarOutlined />}
+                suffix="元"
+                precision={2}
+                loading={loading}
+                valueStyle={{ color: '#52c41a' }}
+              />
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} lg={8}>
+            <Card>
+              <Statistic
+                title="系统运行时间"
+                value={new Date().getHours()}
+                prefix={<ClockCircleOutlined />}
+                suffix="小时"
+                loading={loading}
+                valueStyle={{ color: '#722ed1' }}
               />
             </Card>
           </Col>

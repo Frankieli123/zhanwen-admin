@@ -59,30 +59,58 @@ export const getUsageStatistics = async (req: Request, res: Response) => {
   try {
     const { startDate, endDate, period = 'month' } = req.query;
 
-    // 模拟使用统计数据（实际项目中应该从日志或使用记录表中获取）
-    const mockData = {
+    // 计算日期范围
+    const start = startDate ? new Date(startDate as string) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const end = endDate ? new Date(endDate as string) : new Date();
+
+    // 从使用统计表获取真实数据
+    const usageStats = await prisma.usageStatistic.findMany({
+      where: {
+        date: {
+          gte: start,
+          lte: end,
+        },
+      },
+      orderBy: {
+        date: 'asc',
+      },
+    });
+
+    // 按日期分组统计
+    const dailyStats = new Map();
+    usageStats.forEach(stat => {
+      const dateKey = stat.date.toISOString().split('T')[0];
+      if (!dailyStats.has(dateKey)) {
+        dailyStats.set(dateKey, { date: dateKey, requests: 0, users: 0 });
+      }
+      
+      const dayData = dailyStats.get(dateKey);
+      if (stat.metricName === 'api_calls') {
+        dayData.requests += Number(stat.metricValue);
+      } else if (stat.metricName === 'unique_users') {
+        dayData.users += Number(stat.metricValue);
+      }
+    });
+
+    const data = Array.from(dailyStats.values());
+    const totalRequests = data.reduce((sum, day) => sum + day.requests, 0);
+    const totalUsers = data.reduce((sum, day) => sum + day.users, 0);
+
+    const result = {
       period,
-      data: [
-        { date: '2025-01-01', requests: 120, users: 15 },
-        { date: '2025-01-02', requests: 98, users: 12 },
-        { date: '2025-01-03', requests: 156, users: 18 },
-        { date: '2025-01-04', requests: 134, users: 16 },
-        { date: '2025-01-05', requests: 89, users: 11 },
-        { date: '2025-01-06', requests: 167, users: 20 },
-        { date: '2025-01-07', requests: 145, users: 17 },
-      ],
+      data,
       summary: {
-        totalRequests: 909,
-        avgRequestsPerDay: 129.9,
-        totalUsers: 109,
-        avgUsersPerDay: 15.6,
+        totalRequests,
+        avgRequestsPerDay: data.length > 0 ? totalRequests / data.length : 0,
+        totalUsers,
+        avgUsersPerDay: data.length > 0 ? totalUsers / data.length : 0,
       },
     };
 
     res.json({
       success: true,
       message: '获取使用统计成功',
-      data: mockData,
+      data: result,
     });
   } catch (error) {
     logger.error('获取使用统计失败', { error });
@@ -93,6 +121,12 @@ export const getUsageStatistics = async (req: Request, res: Response) => {
 // 获取模型性能统计
 export const getModelPerformance = async (req: Request, res: Response) => {
   try {
+    const { startDate, endDate } = req.query;
+    
+    // 计算日期范围
+    const start = startDate ? new Date(startDate as string) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const end = endDate ? new Date(endDate as string) : new Date();
+
     const models = await prisma.aiModel.findMany({
       include: {
         provider: {
@@ -101,27 +135,48 @@ export const getModelPerformance = async (req: Request, res: Response) => {
             displayName: true,
           },
         },
+        apiCallLogs: {
+          where: {
+            createdAt: {
+              gte: start,
+              lte: end,
+            },
+          },
+        },
       },
     });
 
-    // 模拟性能数据（实际项目中应该从使用日志中统计）
-    const performanceData = models.map((model, index) => ({
-      id: model.id,
-      name: model.name,
-      displayName: model.displayName,
-      provider: model.provider.displayName,
-      usage: {
-        totalRequests: Math.floor(Math.random() * 1000) + 100,
-        successRate: (Math.random() * 0.1 + 0.9) * 100, // 90-100%
-        avgResponseTime: Math.floor(Math.random() * 2000) + 500, // 500-2500ms
-        errorCount: Math.floor(Math.random() * 10),
-      },
-      costs: {
-        totalTokens: Math.floor(Math.random() * 100000) + 10000,
-        totalCost: (Math.random() * 50 + 10).toFixed(2),
-      },
-      isActive: model.isActive,
-    }));
+    // 从真实日志数据统计性能
+    const performanceData = models.map((model) => {
+      const logs = model.apiCallLogs;
+      const totalRequests = logs.length;
+      const successfulRequests = logs.filter(log => log.status === 'success').length;
+      const errorCount = logs.filter(log => log.status === 'error').length;
+      const totalTokens = logs.reduce((sum, log) => sum + (log.tokensUsed || 0), 0);
+      const totalCost = logs.reduce((sum, log) => sum + Number(log.cost || 0), 0);
+      const responseTimes = logs.filter(log => log.responseTimeMs).map(log => log.responseTimeMs!);
+      const avgResponseTime = responseTimes.length > 0 
+        ? responseTimes.reduce((sum, time) => sum + time, 0) / responseTimes.length 
+        : 0;
+
+      return {
+        id: model.id,
+        name: model.name,
+        displayName: model.displayName,
+        provider: model.provider.displayName,
+        usage: {
+          totalRequests,
+          successRate: totalRequests > 0 ? (successfulRequests / totalRequests) * 100 : 0,
+          avgResponseTime: Math.round(avgResponseTime),
+          errorCount,
+        },
+        costs: {
+          totalTokens,
+          totalCost: totalCost.toFixed(6),
+        },
+        isActive: model.isActive,
+      };
+    });
 
     res.json({
       success: true,
@@ -159,15 +214,46 @@ export const getHexagramStatistics = async (req: Request, res: Response) => {
       return acc;
     }, {} as Record<string, { count: number; active: number }>);
 
-    // 模拟使用频率数据
-    const usageStats = hexagrams.map(hexagram => ({
-      id: hexagram.id,
-      name: hexagram.name,
-      element: hexagram.element,
-      usageCount: Math.floor(Math.random() * 500) + 50,
-      lastUsed: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000), // 最近30天内
-      isActive: hexagram.isActive,
-    }));
+    // 从使用统计表获取卦象使用数据
+    const hexagramUsageStats = await prisma.usageStatistic.findMany({
+      where: {
+        metricName: {
+          startsWith: 'hexagram_',
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    // 处理卦象使用统计
+    const usageMap = new Map();
+    hexagramUsageStats.forEach(stat => {
+      const hexagramId = stat.metricName.replace('hexagram_', '');
+      if (!usageMap.has(hexagramId)) {
+        usageMap.set(hexagramId, {
+          usageCount: 0,
+          lastUsed: stat.createdAt,
+        });
+      }
+      const data = usageMap.get(hexagramId);
+      data.usageCount += Number(stat.metricValue);
+      if (stat.createdAt > data.lastUsed) {
+        data.lastUsed = stat.createdAt;
+      }
+    });
+
+    const usageStats = hexagrams.map(hexagram => {
+      const usage = usageMap.get(hexagram.id.toString()) || { usageCount: 0, lastUsed: new Date() };
+      return {
+        id: hexagram.id,
+        name: hexagram.name,
+        element: hexagram.element,
+        usageCount: usage.usageCount,
+        lastUsed: usage.lastUsed,
+        isActive: hexagram.isActive,
+      };
+    });
 
     const statistics = {
       total: hexagrams.length,

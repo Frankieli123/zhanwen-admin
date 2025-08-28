@@ -2,6 +2,7 @@ import React from "react";
 import { Create, useForm } from "@refinedev/antd";
 import { Form, Input, Select, Switch, DatePicker, Card, Space, Tag } from "antd";
 import { KeyOutlined } from "@ant-design/icons";
+import dayjs from "dayjs";
 
 const { TextArea } = Input;
 const { Option } = Select;
@@ -13,6 +14,7 @@ const AVAILABLE_PERMISSIONS = [
   { value: 'prompts:read', label: '提示词读取', color: 'orange' },
   { value: 'hexagrams:read', label: '卦象读取', color: 'purple' },
   { value: 'analytics:read', label: '分析数据读取', color: 'cyan' },
+  { value: 'usage:write', label: '使用数据上报', color: 'red' },
 ];
 
 export const ApiKeyCreate: React.FC = () => {
@@ -107,6 +109,7 @@ export const ApiKeyCreate: React.FC = () => {
               <div><strong>prompts:read</strong> - 允许读取提示词模板</div>
               <div><strong>hexagrams:read</strong> - 允许读取卦象数据</div>
               <div><strong>analytics:read</strong> - 允许读取分析统计数据</div>
+              <div><strong>usage:write</strong> - 允许上报使用数据和统计信息</div>
             </div>
           </Form.Item>
         </Card>
@@ -116,6 +119,13 @@ export const ApiKeyCreate: React.FC = () => {
             label="过期时间"
             name="expiresAt"
             tooltip="留空表示永不过期"
+            normalize={(value) => {
+              if (!value) return null;
+              if (dayjs.isDayjs(value)) {
+                return value.toISOString();
+              }
+              return null;
+            }}
           >
             <DatePicker 
               showTime
