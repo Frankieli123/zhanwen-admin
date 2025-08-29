@@ -74,6 +74,25 @@ export const getApiLogs = async (req: Request, res: Response) => {
       sortOrder = 'desc',
     } = req.query as any;
 
+    const reqMeta = {
+      method: req.method,
+      path: (req as any).originalUrl || req.url,
+      userId: (req as any).user?.userId,
+      ip: (req.headers['x-forwarded-for'] as string) || (req as any).ip,
+      filters: {
+        apiKeyId: apiKeyId ? Number(apiKeyId) : undefined,
+        clientId: clientId || undefined,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+      },
+      page: Number(page),
+      limit: Number(limit),
+      sortBy,
+      sortOrder,
+    };
+    const t0 = Date.now();
+    logger.info('Usage getApiLogs: start', reqMeta);
+
     const { start, end } = parseDateRange(startDate, endDate);
 
     const where: any = {
@@ -84,8 +103,11 @@ export const getApiLogs = async (req: Request, res: Response) => {
       where.client = { apiKeyId: Number(apiKeyId) };
     }
 
+    const tCount0 = Date.now();
     const total = await prisma.apiCallLog.count({ where });
+    const countDuration = Date.now() - tCount0;
 
+    const tQuery0 = Date.now();
     const logs = await prisma.apiCallLog.findMany({
       where,
       orderBy: { [sortBy as string]: sortOrder === 'asc' ? 'asc' : 'desc' },
@@ -94,31 +116,66 @@ export const getApiLogs = async (req: Request, res: Response) => {
       select: {
         id: true,
         clientId: true,
+        userId: true,
+        platform: true,
+        requestId: true,
+        sessionId: true,
+        modelId: true,
+        tokensUsed: true,
+        cost: true,
         responseTimeMs: true,
         status: true,
         errorMessage: true,
         metadata: true,
+        clientInfo: true,
+        timestamp: true,
         createdAt: true,
       },
     });
+    const queryDuration = Date.now() - tQuery0;
 
-    const data = logs.map((log) => ({
-      id: safeBigIntToString(log.id),
-      timestamp: log.createdAt,
-      clientId: log.clientId,
-      endpoint: deriveEndpoint((log as any).metadata),
-      method: deriveMethod((log as any).metadata),
-      statusCode: deriveStatusCode(log.status, (log as any).metadata),
-      responseTime: log.responseTimeMs ?? 0,
-      metadata: {
-        ip: getFromMeta((log as any).metadata, ['ip', 'ipAddress']),
-        userAgent: getFromMeta((log as any).metadata, ['userAgent', 'ua']),
-      },
-      errorMessage: log.errorMessage || undefined,
-    }));
+    const data = logs.map((log) => {
+      const meta = (log as any).metadata || {};
+      const metadata = {
+        ...meta,
+        ip: meta.ip ?? meta.ipAddress ?? getFromMeta(meta, ['ip', 'ipAddress']),
+        userAgent: meta.userAgent ?? meta.ua ?? getFromMeta(meta, ['userAgent', 'ua']),
+      };
+      const costVal = (log as any).cost != null ? Number((log as any).cost) : undefined;
+
+      return {
+        id: safeBigIntToString(log.id),
+        timestamp: (log as any).timestamp ?? log.createdAt,
+        clientId: log.clientId,
+        userId: (log as any).userId || undefined,
+        platform: (log as any).platform || undefined,
+        requestId: (log as any).requestId || undefined,
+        sessionId: (log as any).sessionId || undefined,
+        modelId: (log as any).modelId ?? undefined,
+        tokensUsed: (log as any).tokensUsed ?? undefined,
+        cost: costVal,
+        endpoint: deriveEndpoint(meta),
+        method: deriveMethod(meta),
+        statusCode: deriveStatusCode(log.status, meta),
+        status: log.status || undefined,
+        responseTime: log.responseTimeMs ?? 0,
+        metadata,
+        clientInfo: (log as any).clientInfo || undefined,
+        errorMessage: log.errorMessage || undefined,
+      };
+    });
 
     const totalPages = Math.ceil(total / Number(limit));
 
+    const duration = Date.now() - t0;
+    const returned = data.length;
+    if (duration > 2000 || queryDuration > 1500) {
+      logger.warn('Usage getApiLogs: slow response', { ...reqMeta, durationMs: duration, countDurationMs: countDuration, queryDurationMs: queryDuration, total, returned });
+    } else {
+      logger.debug('Usage getApiLogs: query complete', { ...reqMeta, durationMs: duration, countDurationMs: countDuration, queryDurationMs: queryDuration, total, returned });
+    }
+
+    logger.info('Usage getApiLogs: success', { ...reqMeta, total, returned, durationMs: Date.now() - t0 });
     res.json({
       success: true,
       message: '获取API调用日志成功',
@@ -144,15 +201,33 @@ export const getUsageMetrics = async (req: Request, res: Response) => {
     const { apiKeyId, clientId, startDate, endDate, groupBy = 'day' } = req.query as any;
     const { start, end } = parseDateRange(startDate, endDate);
 
+    const reqMeta = {
+      method: req.method,
+      path: (req as any).originalUrl || req.url,
+      userId: (req as any).user?.userId,
+      ip: (req.headers['x-forwarded-for'] as string) || (req as any).ip,
+      filters: {
+        apiKeyId: apiKeyId ? Number(apiKeyId) : undefined,
+        clientId: clientId || undefined,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+      },
+      groupBy,
+    };
+    const t0 = Date.now();
+    logger.info('Usage getUsageMetrics: start', reqMeta);
+
     const whereBase: any = { createdAt: { gte: start, lte: end } };
     if (clientId) whereBase.clientId = String(clientId);
     if (apiKeyId) whereBase.client = { apiKeyId: Number(apiKeyId) };
 
+    const tQuery0 = Date.now();
     const logs = await prisma.apiCallLog.findMany({
       where: whereBase,
       select: { createdAt: true, status: true, responseTimeMs: true, metadata: true },
       orderBy: { createdAt: 'asc' },
     });
+    const queryDuration = Date.now() - tQuery0;
 
     // 生成时间桶
     const buckets: Record<string, { time: string; requests: number; errors: number; avgResponseTime: number; _sumRt: number; _cntRt: number }>= {};
@@ -196,6 +271,7 @@ export const getUsageMetrics = async (req: Request, res: Response) => {
         avgResponseTime: b._cntRt ? Math.round(b._sumRt / b._cntRt) : 0,
       }));
 
+    logger.info('Usage getUsageMetrics: success', { ...reqMeta, points: timeSeries.length, durationMs: Date.now() - t0, queryDurationMs: queryDuration });
     res.json({
       success: true,
       message: '获取使用指标成功',
@@ -214,14 +290,28 @@ export const getClientStats = async (req: Request, res: Response) => {
     const now = Date.now();
     const start = new Date(now - periodToMs(Number(period)));
 
+    const reqMeta = {
+      method: req.method,
+      path: (req as any).originalUrl || req.url,
+      userId: (req as any).user?.userId,
+      ip: (req.headers['x-forwarded-for'] as string) || (req as any).ip,
+      filters: { apiKeyId: apiKeyId ? Number(apiKeyId) : undefined },
+      period: Number(period),
+      top: Number(top),
+    };
+    const t0 = Date.now();
+    logger.info('Usage getClientStats: start', reqMeta);
+
     const where: any = { createdAt: { gte: start } };
     if (apiKeyId) where.client = { apiKeyId: Number(apiKeyId) };
 
+    const tQuery0 = Date.now();
     const logs = await prisma.apiCallLog.findMany({
       where,
       select: { clientId: true, status: true, responseTimeMs: true, createdAt: true },
       orderBy: { createdAt: 'desc' },
     });
+    const queryDuration = Date.now() - tQuery0;
 
     const byClient: Record<string, any> = {};
     for (const l of logs) {
@@ -252,6 +342,7 @@ export const getClientStats = async (req: Request, res: Response) => {
     .sort((a, b) => b.requestCount - a.requestCount)
     .slice(0, Number(top));
 
+    logger.info('Usage getClientStats: success', { ...reqMeta, clients: data.length, durationMs: Date.now() - t0, queryDurationMs: queryDuration });
     res.json({ success: true, message: '获取客户端统计成功', data });
   } catch (error) {
     logger.error('获取客户端统计失败', { error });
@@ -262,6 +353,15 @@ export const getClientStats = async (req: Request, res: Response) => {
 // GET /usage/realtime
 export const getRealtimeStats = async (req: Request, res: Response) => {
   try {
+    const reqMeta = {
+      method: req.method,
+      path: (req as any).originalUrl || req.url,
+      userId: (req as any).user?.userId,
+      ip: (req.headers['x-forwarded-for'] as string) || (req as any).ip,
+    };
+    const t0 = Date.now();
+    logger.info('Usage getRealtimeStats: start', reqMeta);
+
     const start = new Date();
     start.setHours(0, 0, 0, 0); // 今日
 
@@ -281,6 +381,7 @@ export const getRealtimeStats = async (req: Request, res: Response) => {
     const yCount = await prisma.apiCallLog.count({ where: { createdAt: { gte: yesterdayStart, lte: yesterdayEnd } } });
     const growth = yCount === 0 ? 100 : Math.round(((total - yCount) / yCount) * 100);
 
+    logger.info('Usage getRealtimeStats: success', { ...reqMeta, total, errors, activeClients, avgResponseTime: Math.round(avgRt || 0), durationMs: Date.now() - t0 });
     res.json({
       success: true,
       message: '获取实时统计成功',
@@ -513,11 +614,106 @@ export const getDeviceAnalysis = async (req: Request, res: Response) => {
   }
 };
 
+// GET /usage/metrics-data
+export const getMetricsData = async (req: Request, res: Response) => {
+  try {
+    const { apiKeyId, clientId, startDate, endDate, metricName, limit = '100' } = req.query as any;
+    const { start, end } = parseDateRange(startDate, endDate);
+
+    const reqMeta = {
+      method: req.method,
+      path: (req as any).originalUrl || req.url,
+      userId: (req as any).user?.userId,
+      ip: (req.headers['x-forwarded-for'] as string) || (req as any).ip,
+      filters: {
+        apiKeyId: apiKeyId ? Number(apiKeyId) : undefined,
+        clientId: clientId || undefined,
+        metricName: metricName || undefined,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+      },
+      limit: Number(limit),
+    };
+    const t0 = Date.now();
+    logger.info('Usage getMetricsData: start', reqMeta);
+
+    const where: any = {
+      createdAt: { gte: start, lte: end },
+    };
+    if (clientId) where.clientId = String(clientId);
+    if (metricName) where.metricName = String(metricName);
+    if (apiKeyId) {
+      where.client = { apiKeyId: Number(apiKeyId) };
+    }
+
+    const metrics = await prisma.usageStatistic.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: Number(limit),
+      select: {
+        id: true,
+        date: true,
+        platform: true,
+        clientId: true,
+        sessionId: true,
+        userId: true,
+        metricName: true,
+        metricValue: true,
+        metadata: true,
+        clientInfo: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    const data = metrics.map((metric) => ({
+      id: safeBigIntToString(metric.id),
+      date: metric.date,
+      name: metric.metricName,
+      value: safeBigIntToString(metric.metricValue),
+      platform: metric.platform,
+      clientId: metric.clientId,
+      sessionId: metric.sessionId,
+      userId: metric.userId,
+      metadata: metric.metadata,
+      clientInfo: metric.clientInfo,
+      created: metric.createdAt,
+      lastUpdated: metric.updatedAt,
+    }));
+
+    logger.info('Usage getMetricsData: success', { ...reqMeta, returned: data.length, durationMs: Date.now() - t0 });
+    res.json({
+      success: true,
+      message: '获取使用指标数据成功',
+      data,
+    });
+  } catch (error) {
+    logger.error('获取使用指标数据失败', { error });
+    throw createError('获取使用指标数据失败', 500);
+  }
+};
+
 // GET /usage/export
 export const exportUsageReport = async (req: Request, res: Response) => {
   try {
     const { type = 'summary', format = 'json', startDate, endDate, apiKeyId } = req.query as any;
     const { start, end } = parseDateRange(startDate, endDate);
+
+    const reqMeta = {
+      method: req.method,
+      path: (req as any).originalUrl || req.url,
+      userId: (req as any).user?.userId,
+      ip: (req.headers['x-forwarded-for'] as string) || (req as any).ip,
+      type,
+      format,
+      filters: {
+        apiKeyId: apiKeyId ? Number(apiKeyId) : undefined,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+      },
+    };
+    const t0 = Date.now();
+    logger.info('Usage exportUsageReport: start', reqMeta);
 
     if (type === 'logs') {
       // 导出近期日志（最多1000条）
@@ -571,6 +767,7 @@ export const exportUsageReport = async (req: Request, res: Response) => {
         return;
       }
 
+      logger.info('Usage exportUsageReport(logs): success', { ...reqMeta, rows: rows.length, durationMs: Date.now() - t0 });
       res.json({ success: true, message: '导出日志成功', data: rows });
       return;
     }
@@ -639,6 +836,7 @@ export const exportUsageReport = async (req: Request, res: Response) => {
       }
       // 其他格式复用 metrics 逻辑
       const fakeReq: any = { ...req, query: { ...req.query, groupBy } };
+      logger.debug('Usage exportUsageReport(metrics): delegating to getUsageMetrics', reqMeta);
       await getUsageMetrics(fakeReq as Request, res);
       return;
     }
@@ -686,6 +884,7 @@ export const exportUsageReport = async (req: Request, res: Response) => {
       return;
     }
 
+    logger.info('Usage exportUsageReport(summary): success', { ...reqMeta, durationMs: Date.now() - t0, totalRequests: summary.totalRequests });
     res.json({ success: true, message: '导出汇总成功', data: summary });
   } catch (error) {
     logger.error('导出使用报告失败', { error });

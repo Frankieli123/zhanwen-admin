@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { 
   Card, Row, Col, Statistic, Table, Tag, Spin, DatePicker, Select, Space, Button, message,
-  Tabs, Progress, Badge, Tooltip, Typography, Divider, Alert
+  Tabs, Progress, Badge, Tooltip, Typography, Divider, Alert, Descriptions
 } from "antd";
 import {
   ApiOutlined, DatabaseOutlined, ClockCircleOutlined, AlertOutlined,
   CloudDownloadOutlined, GlobalOutlined, MobileOutlined, DesktopOutlined,
   ThunderboltOutlined, LineChartOutlined, BarChartOutlined, PieChartOutlined,
-  SyncOutlined, ExportOutlined, FilterOutlined
+  SyncOutlined, ExportOutlined, FilterOutlined, CopyOutlined
 } from "@ant-design/icons";
 import { usageAPI, apiKeysAPI } from "../../utils/api";
 import dayjs from "dayjs";
@@ -34,6 +34,7 @@ interface UsageData {
   endpoints: any[];
   geo: any[];
   devices: any;
+  metricsData: any[];
 }
 
 export const UsageAnalytics: React.FC = () => {
@@ -47,7 +48,8 @@ export const UsageAnalytics: React.FC = () => {
     performance: {},
     endpoints: [],
     geo: [],
-    devices: {}
+    devices: {},
+    metricsData: []
   });
   
   const [filters, setFilters] = useState({
@@ -118,26 +120,30 @@ export const UsageAnalytics: React.FC = () => {
     setLoading(true);
     try {
       const [startDate, endDate] = filters.dateRange;
-      const params = {
-        startDate: startDate.format('YYYY-MM-DD'),
-        endDate: endDate.format('YYYY-MM-DD'),
+      const params: any = {
+        startDate: startDate.startOf('day').toISOString(),
+        endDate: endDate.endOf('day').toISOString(),
         apiKeyId: filters.apiKeyId,
         clientId: filters.clientId,
-        period: filters.period,
         groupBy: filters.groupBy
       };
+      // 清理空过滤参数，确保“全部”不传 apiKeyId，避免后端被动过滤
+      if (params.apiKeyId == null) delete params.apiKeyId;
+      if (!params.clientId) delete params.clientId;
+      const apiKeyParam = filters.apiKeyId == null ? {} : { apiKeyId: filters.apiKeyId };
 
       // 并行加载所有数据
-      const [logs, metrics, clients, realtime, errors, performance, endpoints, geo, devices] = await Promise.allSettled([
+      const [logs, metrics, clients, realtime, errors, performance, endpoints, geo, devices, metricsData] = await Promise.allSettled([
         usageAPI.getApiLogs({ ...params, limit: 100 }),
         usageAPI.getUsageMetrics(params),
-        usageAPI.getClientStats({ apiKeyId: filters.apiKeyId, top: 10 }),
+        usageAPI.getClientStats({ ...apiKeyParam, top: 10 }),
         usageAPI.getRealtimeStats(),
-        usageAPI.getErrorAnalysis({ apiKeyId: filters.apiKeyId }),
-        usageAPI.getPerformanceMetrics({ apiKeyId: filters.apiKeyId }),
-        usageAPI.getEndpointStats({ apiKeyId: filters.apiKeyId, top: 10 }),
-        usageAPI.getGeoAnalysis({ apiKeyId: filters.apiKeyId }),
-        usageAPI.getDeviceAnalysis({ apiKeyId: filters.apiKeyId })
+        usageAPI.getErrorAnalysis({ ...apiKeyParam }),
+        usageAPI.getPerformanceMetrics({ ...apiKeyParam }),
+        usageAPI.getEndpointStats({ ...apiKeyParam, top: 10 }),
+        usageAPI.getGeoAnalysis({ ...apiKeyParam }),
+        usageAPI.getDeviceAnalysis({ ...apiKeyParam }),
+        usageAPI.getMetricsData({ ...params, limit: 100 })
       ]);
 
       const nextData = {
@@ -149,7 +155,8 @@ export const UsageAnalytics: React.FC = () => {
         performance: performance.status === 'fulfilled' ? performance.value.data || {} : {},
         endpoints: endpoints.status === 'fulfilled' ? endpoints.value.data || [] : [],
         geo: geo.status === 'fulfilled' ? geo.value.data || [] : [],
-        devices: devices.status === 'fulfilled' ? devices.value.data || {} : {}
+        devices: devices.status === 'fulfilled' ? devices.value.data || {} : {},
+        metricsData: metricsData.status === 'fulfilled' ? metricsData.value.data || [] : []
       };
       setData(nextData);
 
@@ -176,7 +183,7 @@ export const UsageAnalytics: React.FC = () => {
     }
   };
 
-  // API调用日志表格列
+  // API调用日志表格列（扩展以适配更详细的上报字段）
   const logColumns = [
     {
       title: '时间',
@@ -187,18 +194,37 @@ export const UsageAnalytics: React.FC = () => {
       sorter: (a: any, b: any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
     },
     {
+      title: '用户ID',
+      dataIndex: 'userId',
+      key: 'userId',
+      width: 120,
+      ellipsis: true,
+      render: (uid: string) => uid ? <Tag color="purple">{uid}</Tag> : <Text type="secondary">-</Text>
+    },
+    {
       title: '客户端ID',
       dataIndex: 'clientId',
       key: 'clientId',
-      width: 120,
+      width: 140,
       ellipsis: true,
       render: (id: string) => <Tag color="blue">{id}</Tag>
+    },
+    {
+      title: '平台',
+      dataIndex: 'platform',
+      key: 'platform',
+      width: 100,
+      render: (pf: string) => pf ? (
+        <Tag color={pf === 'web' ? 'geekblue' : pf === 'ios' ? 'gold' : pf === 'android' ? 'green' : 'default'}>
+          {pf}
+        </Tag>
+      ) : <Text type="secondary">-</Text>
     },
     {
       title: '端点',
       dataIndex: 'endpoint',
       key: 'endpoint',
-      width: 200,
+      width: 220,
       render: (endpoint: string, record: any) => (
         <Space>
           <Tag color={record.method === 'GET' ? 'green' : 'orange'}>{record.method}</Tag>
@@ -207,26 +233,70 @@ export const UsageAnalytics: React.FC = () => {
       )
     },
     {
-      title: '状态',
+      title: '状态码',
       dataIndex: 'statusCode',
       key: 'statusCode',
       width: 100,
       render: (code: number) => (
         <Badge 
-          status={code < 400 ? "success" : code < 500 ? "warning" : "error"}
+          status={code < 400 ? 'success' : code < 500 ? 'warning' : 'error'}
           text={code}
         />
       )
+    },
+    {
+      title: '调用状态',
+      dataIndex: 'status',
+      key: 'status',
+      width: 110,
+      render: (s: string) => (
+        <Badge status={s === 'success' ? 'success' : s === 'error' ? 'error' : 'default'} text={s || '-'} />
+      )
+    },
+    {
+      title: '模型',
+      key: 'model',
+      width: 160,
+      render: (_: any, record: any) => {
+        const model = record.modelId ?? record?.metadata?.model ?? record?.metadata?.modelId;
+        return model ? <Tag color="cyan">{model}</Tag> : <Text type="secondary">-</Text>;
+      }
+    },
+    {
+      title: 'Tokens',
+      dataIndex: 'tokensUsed',
+      key: 'tokensUsed',
+      width: 110,
+      render: (v: number) => v != null ? <Text>{new Intl.NumberFormat().format(v)}</Text> : <Text type="secondary">-</Text>
+    },
+    {
+      title: '成本',
+      dataIndex: 'cost',
+      key: 'cost',
+      width: 110,
+      render: (v: number) => v != null ? <Tag color="gold">{v.toFixed(6)}</Tag> : <Text type="secondary">-</Text>
     },
     {
       title: '响应时间',
       dataIndex: 'responseTime',
       key: 'responseTime',
       width: 120,
-      render: (time: number) => {
+      render: (_: any, record: any) => {
+        const time = record?.responseTime ?? record?.responseTimeMs ?? record?.response_time_ms;
+        if (time == null) return <Text type="secondary">-</Text>;
         const color = time < 100 ? 'green' : time < 500 ? 'orange' : 'red';
         return <Tag color={color}>{time}ms</Tag>;
       }
+    },
+    {
+      title: '错误信息',
+      dataIndex: 'errorMessage',
+      key: 'errorMessage',
+      ellipsis: true,
+      width: 220,
+      render: (msg: string) => msg ? (
+        <Tooltip title={msg}><Text ellipsis style={{ width: 200 }}>{msg}</Text></Tooltip>
+      ) : <Text type="secondary">-</Text>
     },
     {
       title: 'IP地址',
@@ -241,11 +311,97 @@ export const UsageAnalytics: React.FC = () => {
       ellipsis: true,
       render: (ua: string) => (
         <Tooltip title={ua}>
-          <Text ellipsis style={{ width: 200 }}>{ua}</Text>
+          <Text ellipsis style={{ width: 220 }}>{ua}</Text>
         </Tooltip>
       )
     }
   ];
+
+  // 日志展开内容：展示 requestId/sessionId/metadata 与 clientInfo 详情
+  const renderLogExpanded = (record: any) => {
+    const ci = record?.clientInfo || {};
+    const md = record?.metadata || {};
+    const copyToClipboard = async (text?: string) => {
+      if (!text) return;
+      try {
+        await navigator.clipboard.writeText(text);
+        message.success('已复制到剪贴板');
+      } catch (e) {
+        message.warning('复制失败');
+      }
+    };
+
+    const screenInfo = ci?.screen ? `${ci.screen.width}x${ci.screen.height} / depth:${ci.screen.colorDepth ?? ci.screen.depth ?? '-'} / pxDepth:${ci.screen.pixelDepth ?? '-'}` : '-';
+    const viewportInfo = ci?.viewport ? `${ci.viewport.width}x${ci.viewport.height}` : '-';
+    const conn = ci?.connection || {};
+    const connInfo = conn?.effectiveType || conn?.downlink || conn?.rtt || conn?.saveData != null
+      ? `${conn.effectiveType ?? '-'} / ${conn.downlink ?? '-'}Mbps / ${conn.rtt ?? '-'}ms / save:${conn.saveData ?? '-'}`
+      : '-';
+
+    return (
+      <div style={{ padding: '8px 16px' }}>
+        <Descriptions size="small" column={2} title="请求详情" bordered>
+          <Descriptions.Item label="请求ID">
+            <Space>
+              <Text code>{record?.requestId || '-'}</Text>
+              {record?.requestId && <Button size="small" type="link" icon={<CopyOutlined />} onClick={() => copyToClipboard(record.requestId)} />}
+            </Space>
+          </Descriptions.Item>
+          <Descriptions.Item label="会话ID">
+            <Space>
+              <Text code>{record?.sessionId || '-'}</Text>
+              {record?.sessionId && <Button size="small" type="link" icon={<CopyOutlined />} onClick={() => copyToClipboard(record.sessionId)} />}
+            </Space>
+          </Descriptions.Item>
+          <Descriptions.Item label="用户ID">{record?.userId || '-'}</Descriptions.Item>
+          <Descriptions.Item label="平台">{record?.platform || '-'}</Descriptions.Item>
+          <Descriptions.Item label="模型ID">{record?.modelId ?? md?.modelId ?? md?.model ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label="Tokens">{record?.tokensUsed ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label="成本">{record?.cost ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label="调用状态">{record?.status || '-'}</Descriptions.Item>
+          {record?.errorMessage && (
+            <Descriptions.Item label="错误信息" span={2}>
+              <Text type="danger">{record.errorMessage}</Text>
+            </Descriptions.Item>
+          )}
+        </Descriptions>
+
+        <Divider style={{ margin: '12px 0' }} />
+
+        <Descriptions size="small" column={2} title="元数据 (metadata)" bordered>
+          <Descriptions.Item label="model">{md?.model || '-'}</Descriptions.Item>
+          <Descriptions.Item label="promptType">{md?.promptType || '-'}</Descriptions.Item>
+          <Descriptions.Item label="userAgent" span={2}>
+            <Text ellipsis>{md?.userAgent || '-'}</Text>
+          </Descriptions.Item>
+          {md?.endpoint && (
+            <Descriptions.Item label="endpoint" span={2}>
+              <Text code>{md.endpoint}</Text>
+            </Descriptions.Item>
+          )}
+        </Descriptions>
+
+        <Divider style={{ margin: '12px 0' }} />
+
+        <Descriptions size="small" column={2} title="客户端信息 (clientInfo)" bordered>
+          <Descriptions.Item label="userAgent" span={2}>{ci?.userAgent || '-'}</Descriptions.Item>
+          <Descriptions.Item label="language">{ci?.language || '-'}</Descriptions.Item>
+          <Descriptions.Item label="languages">{Array.isArray(ci?.languages) ? ci.languages.join(', ') : '-'}</Descriptions.Item>
+          <Descriptions.Item label="platform">{ci?.platform || '-'}</Descriptions.Item>
+          <Descriptions.Item label="cookieEnabled">{ci?.cookieEnabled?.toString() ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label="onLine">{ci?.onLine?.toString() ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label="screen">{screenInfo}</Descriptions.Item>
+          <Descriptions.Item label="viewport">{viewportInfo}</Descriptions.Item>
+          <Descriptions.Item label="timezone">{ci?.timezone || '-'}</Descriptions.Item>
+          <Descriptions.Item label="deviceMemory">{ci?.deviceMemory ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label="hardwareConcurrency">{ci?.hardwareConcurrency ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label="connection">{connInfo}</Descriptions.Item>
+          <Descriptions.Item label="appVersion">{ci?.appVersion || '-'}</Descriptions.Item>
+          <Descriptions.Item label="buildTime">{ci?.buildTime || '-'}</Descriptions.Item>
+        </Descriptions>
+      </div>
+    );
+  };
 
   // 客户端统计表格列
   const clientColumns = [
@@ -298,6 +454,177 @@ export const UsageAnalytics: React.FC = () => {
     }
   ];
 
+  // 使用指标表格列
+  const metricsColumns = [
+    {
+      title: '时间',
+      dataIndex: 'created',
+      key: 'created',
+      width: 180,
+      render: (ts: string) => dayjs(ts).format('YYYY-MM-DD HH:mm:ss'),
+      sorter: (a: any, b: any) => new Date(a.created).getTime() - new Date(b.created).getTime()
+    },
+    {
+      title: '日期',
+      dataIndex: 'date',
+      key: 'date',
+      width: 120,
+      render: (date: string) => dayjs(date).format('YYYY-MM-DD')
+    },
+    {
+      title: '指标名称',
+      dataIndex: 'name',
+      key: 'name',
+      width: 200,
+      render: (name: string) => {
+        const displayNames = {
+          api_calls: 'API调用次数',
+          total_tokens: 'Token使用量',
+          successful_requests: '成功请求数',
+          failed_requests: '失败请求数',
+          unique_users: '独立用户数',
+          session_duration: '会话时长',
+          response_time: '响应时间',
+          error_rate: '错误率'
+        };
+        return <Tag color="blue">{(displayNames as any)[name] || name}</Tag>;
+      }
+    },
+    {
+      title: '指标值',
+      dataIndex: 'value',
+      key: 'value',
+      width: 120,
+      render: (v: string | number) => <Text strong>{new Intl.NumberFormat().format(Number(v))}</Text>
+    },
+    {
+      title: '平台',
+      dataIndex: 'platform',
+      key: 'platform',
+      width: 100,
+      render: (pf: string) => pf ? (
+        <Tag color={pf === 'web' ? 'geekblue' : pf === 'ios' ? 'gold' : pf === 'android' ? 'green' : 'default'}>
+          {pf}
+        </Tag>
+      ) : <Text type="secondary">-</Text>
+    },
+    {
+      title: '客户端ID',
+      dataIndex: 'clientId',
+      key: 'clientId',
+      width: 140,
+      ellipsis: true,
+      render: (id: string) => id ? <Tag color="purple">{id}</Tag> : <Text type="secondary">-</Text>
+    },
+    {
+      title: '用户ID',
+      dataIndex: 'userId',
+      key: 'userId',
+      width: 120,
+      ellipsis: true,
+      render: (uid: string) => uid ? <Tag color="cyan">{uid}</Tag> : <Text type="secondary">-</Text>
+    },
+    {
+      title: '会话ID',
+      dataIndex: 'sessionId',
+      key: 'sessionId',
+      width: 140,
+      ellipsis: true,
+      render: (sid: string) => sid ? <Text code>{sid}</Text> : <Text type="secondary">-</Text>
+    },
+    {
+      title: '最后更新',
+      dataIndex: 'lastUpdated',
+      key: 'lastUpdated',
+      width: 180,
+      render: (ts: string) => ts ? dayjs(ts).format('YYYY-MM-DD HH:mm:ss') : <Text type="secondary">-</Text>
+    }
+  ];
+
+  // 指标展开内容：展示 metadata 与 clientInfo 详情
+  const renderMetricExpanded = (record: any) => {
+    const ci = record?.clientInfo || {};
+    const md = record?.metadata || {};
+    
+    const copyToClipboard = async (text?: string) => {
+      if (!text) return;
+      try {
+        await navigator.clipboard.writeText(text);
+        message.success('已复制到剪贴板');
+      } catch (e) {
+        message.warning('复制失败');
+      }
+    };
+
+    const screenInfo = ci?.screen ? `${ci.screen.width}x${ci.screen.height} / depth:${ci.screen.colorDepth ?? ci.screen.depth ?? '-'} / pxDepth:${ci.screen.pixelDepth ?? '-'}` : '-';
+    const viewportInfo = ci?.viewport ? `${ci.viewport.width}x${ci.viewport.height}` : '-';
+    const conn = ci?.connection || {};
+    const connInfo = conn?.effectiveType || conn?.downlink || conn?.rtt || conn?.saveData != null
+      ? `${conn.effectiveType ?? '-'} / ${conn.downlink ?? '-'}Mbps / ${conn.rtt ?? '-'}ms / save:${conn.saveData ?? '-'}`
+      : '-';
+
+    return (
+      <div style={{ padding: '8px 16px' }}>
+        <Descriptions size="small" column={2} title="指标详情" bordered>
+          <Descriptions.Item label="指标名称">{record?.name || '-'}</Descriptions.Item>
+          <Descriptions.Item label="指标值">{record?.value || '-'}</Descriptions.Item>
+          <Descriptions.Item label="日期">{record?.date ? dayjs(record.date).format('YYYY-MM-DD') : '-'}</Descriptions.Item>
+          <Descriptions.Item label="平台">{record?.platform || '-'}</Descriptions.Item>
+          <Descriptions.Item label="客户端ID">
+            <Space>
+              <Text code>{record?.clientId || '-'}</Text>
+              {record?.clientId && <Button size="small" type="link" icon={<CopyOutlined />} onClick={() => copyToClipboard(record.clientId)} />}
+            </Space>
+          </Descriptions.Item>
+          <Descriptions.Item label="会话ID">
+            <Space>
+              <Text code>{record?.sessionId || '-'}</Text>
+              {record?.sessionId && <Button size="small" type="link" icon={<CopyOutlined />} onClick={() => copyToClipboard(record.sessionId)} />}
+            </Space>
+          </Descriptions.Item>
+          <Descriptions.Item label="用户ID">{record?.userId || '-'}</Descriptions.Item>
+          <Descriptions.Item label="创建时间">{record?.created ? dayjs(record.created).format('YYYY-MM-DD HH:mm:ss') : '-'}</Descriptions.Item>
+        </Descriptions>
+
+        <Divider style={{ margin: '12px 0' }} />
+
+        <Descriptions size="small" column={2} title="元数据 (metadata)" bordered>
+          {Object.keys(md).length > 0 ? (
+            Object.entries(md).map(([key, value]) => (
+              <Descriptions.Item key={key} label={key}>
+                {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+              </Descriptions.Item>
+            ))
+          ) : (
+            <Descriptions.Item label="无数据" span={2}>-</Descriptions.Item>
+          )}
+        </Descriptions>
+
+        {ci && Object.keys(ci).length > 0 && (
+          <>
+            <Divider style={{ margin: '12px 0' }} />
+            <Descriptions size="small" column={2} title="客户端信息 (clientInfo)" bordered>
+              <Descriptions.Item label="userAgent" span={2}>{ci?.userAgent || '-'}</Descriptions.Item>
+              <Descriptions.Item label="language">{ci?.language || '-'}</Descriptions.Item>
+              <Descriptions.Item label="languages">{Array.isArray(ci?.languages) ? ci.languages.join(', ') : '-'}</Descriptions.Item>
+              <Descriptions.Item label="platform">{ci?.platform || '-'}</Descriptions.Item>
+              <Descriptions.Item label="cookieEnabled">{ci?.cookieEnabled?.toString() ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label="onLine">{ci?.onLine?.toString() ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label="screen">{screenInfo}</Descriptions.Item>
+              <Descriptions.Item label="viewport">{viewportInfo}</Descriptions.Item>
+              <Descriptions.Item label="timezone">{ci?.timezone || '-'}</Descriptions.Item>
+              <Descriptions.Item label="deviceMemory">{ci?.deviceMemory ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label="hardwareConcurrency">{ci?.hardwareConcurrency ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label="connection">{connInfo}</Descriptions.Item>
+              <Descriptions.Item label="appVersion">{ci?.appVersion || '-'}</Descriptions.Item>
+              <Descriptions.Item label="buildTime">{ci?.buildTime || '-'}</Descriptions.Item>
+            </Descriptions>
+          </>
+        )}
+      </div>
+    );
+  };
+
   // 端点统计表格列
   const endpointColumns = [
     {
@@ -343,13 +670,14 @@ export const UsageAnalytics: React.FC = () => {
   const handleExport = async (type: 'logs' | 'metrics' | 'summary', format: 'csv' | 'json' | 'pdf') => {
     try {
       const [startDate, endDate] = filters.dateRange;
-      const response = await usageAPI.exportReport({
+      const exportParams: any = {
         type,
         format,
-        startDate: startDate.format('YYYY-MM-DD'),
-        endDate: endDate.format('YYYY-MM-DD'),
-        apiKeyId: filters.apiKeyId
-      });
+        startDate: startDate.startOf('day').toISOString(),
+        endDate: endDate.endOf('day').toISOString(),
+      };
+      if (filters.apiKeyId != null) exportParams.apiKeyId = filters.apiKeyId;
+      const response = await usageAPI.exportReport(exportParams);
       // 后端已按 format 返回文件流，前端直接使用 Blob 下载
       const blob = response as unknown as Blob;
 
@@ -412,11 +740,16 @@ export const UsageAnalytics: React.FC = () => {
                 placeholder="选择API Key"
                 style={{ width: 200 }}
                 allowClear
-                value={filters.apiKeyId}
-                onChange={(value) => { setAutoLoadEnabled(true); setFilters({ ...filters, apiKeyId: value }); }}
+                value={filters.apiKeyId !== undefined ? String(filters.apiKeyId) : undefined}
+                onChange={(value) => {
+                  setAutoLoadEnabled(true);
+                  const next = (value === undefined || value === '__ALL__') ? undefined : Number(value);
+                  setFilters({ ...filters, apiKeyId: next });
+                }}
               >
+                <Option value="__ALL__">全部</Option>
                 {apiKeys.map(key => (
-                  <Option key={key.id} value={key.id}>{key.name}</Option>
+                  <Option key={key.id} value={String(key.id)}>{key.name}</Option>
                 ))}
               </Select>
               <Select
@@ -565,7 +898,11 @@ export const UsageAnalytics: React.FC = () => {
               dataSource={data.logs}
               rowKey="id"
               loading={loading}
-              scroll={{ x: 1200 }}
+              scroll={{ x: 1600 }}
+              expandable={{
+                expandedRowRender: (record) => renderLogExpanded(record),
+                rowExpandable: (record) => Boolean(record?.clientInfo || record?.metadata)
+              }}
               pagination={{
                 pageSize: 20,
                 showSizeChanger: true,
@@ -596,6 +933,25 @@ export const UsageAnalytics: React.FC = () => {
               pagination={{
                 pageSize: 10,
                 showTotal: (total) => `共 ${total} 个端点`
+              }}
+            />
+          </TabPane>
+
+          <TabPane tab={<span><BarChartOutlined /> 使用指标</span>} key="metrics-data">
+            <Table
+              columns={metricsColumns}
+              dataSource={data.metricsData}
+              rowKey="id"
+              loading={loading}
+              scroll={{ x: 1400 }}
+              expandable={{
+                expandedRowRender: (record) => renderMetricExpanded(record),
+                rowExpandable: (record) => Boolean(record?.clientInfo || record?.metadata)
+              }}
+              pagination={{
+                pageSize: 20,
+                showSizeChanger: true,
+                showTotal: (total) => `共 ${total} 条指标记录`
               }}
             />
           </TabPane>

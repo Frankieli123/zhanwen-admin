@@ -104,16 +104,30 @@ const TokenManager = {
   }
 };
 
-// 请求拦截器 - 添加认证token
+// 请求拦截器 - 添加认证token + 网页控制台日志
 apiClient.interceptors.request.use(
   (config) => {
     const token = TokenManager.getToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    // 记录开始时间用于计算耗时
+    (config as any)._startTime = Date.now();
+    const method = (config.method || 'get').toString().toUpperCase();
+    const base = config.baseURL || apiClient.defaults.baseURL || '';
+    const fullUrl = `${base || ''}${config.url || ''}`;
+    // 仅打印关键字段，避免泄露敏感头
+    // 在“网页控制台”直接可见
+    console.info(`[API] -> ${method} ${fullUrl}`, {
+      params: config.params,
+      timeout: config.timeout,
+    });
+
     return config;
   },
   (error) => {
+    console.error('[API] request error', { message: error?.message });
     return Promise.reject(error);
   }
 );
@@ -121,6 +135,16 @@ apiClient.interceptors.request.use(
 // 响应拦截器 - 处理错误和token过期
 apiClient.interceptors.response.use(
   (response: AxiosResponse) => {
+    const start = (response.config as any)._startTime || Date.now();
+    const duration = Date.now() - start;
+    const method = (response.config.method || 'get').toString().toUpperCase();
+    const base = response.config.baseURL || apiClient.defaults.baseURL || '';
+    const fullUrl = `${base || ''}${response.config.url || ''}`;
+    console.info(`[API] <- ${response.status} ${method} ${fullUrl} (${duration}ms)`, {
+      ok: response.status >= 200 && response.status < 300,
+      success: (response.data && (response.data.success !== undefined)) ? !!response.data.success : undefined,
+      message: response.data?.message,
+    });
     return response;
   },
   async (error) => {
@@ -231,16 +255,56 @@ const authClient = axios.create({
   },
 });
 
-// 为认证客户端添加token拦截器
+// 为认证客户端添加token拦截器 + 网页控制台日志
 authClient.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('auth_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    (config as any)._startTime = Date.now();
+    const method = (config.method || 'get').toString().toUpperCase();
+    const base = config.baseURL || '';
+    const fullUrl = `${base || ''}${config.url || ''}`;
+    console.info(`[AUTH] -> ${method} ${fullUrl}`, { params: config.params, timeout: config.timeout });
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => {
+    console.error('[AUTH] request error', { message: error?.message });
+    return Promise.reject(error);
+  }
+);
+
+authClient.interceptors.response.use(
+  (response) => {
+    const start = (response.config as any)._startTime || Date.now();
+    const duration = Date.now() - start;
+    const method = (response.config.method || 'get').toString().toUpperCase();
+    const base = response.config.baseURL || '';
+    const fullUrl = `${base || ''}${response.config.url || ''}`;
+    console.info(`[AUTH] <- ${response.status} ${method} ${fullUrl} (${duration}ms)`, {
+      ok: response.status >= 200 && response.status < 300,
+      success: (response.data && (response.data.success !== undefined)) ? !!response.data.success : undefined,
+      message: response.data?.message,
+    });
+    return response;
+  },
+  (error) => {
+    try {
+      const cfg = error.config || {};
+      const start = (cfg as any)._startTime || Date.now();
+      const duration = Date.now() - start;
+      const method = (cfg.method || 'get').toString().toUpperCase();
+      const base = cfg.baseURL || '';
+      const fullUrl = `${base || ''}${cfg.url || ''}`;
+      const status = error.response?.status;
+      console.error(`[AUTH] xx ${status ?? 'ERR'} ${method} ${fullUrl} (${duration}ms)`, {
+        message: error.message,
+        data: error.response?.data,
+      });
+    } catch {}
+    return Promise.reject(error);
+  }
 );
 
 export const authAPI = {
@@ -531,6 +595,16 @@ export const usageAPI = {
     endDate?: string;
     apiKeyId?: number;
   }) => api.get('/usage/export', { params, responseType: 'blob' }),
+
+  // 获取使用指标数据
+  getMetricsData: (params?: {
+    apiKeyId?: number;
+    clientId?: string;
+    startDate?: string;
+    endDate?: string;
+    metricName?: string;
+    limit?: number;
+  }) => api.get('/usage/metrics-data', { params }),
 };
 
 // 导出 TokenManager 供其他模块使用

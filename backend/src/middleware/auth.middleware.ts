@@ -102,8 +102,8 @@ export const requirePermission = (permission: string) => {
       return;
     }
 
-    // 超级管理员拥有所有权限
-    if (req.user.role === 'super_admin') {
+    // 超级管理员和admin拥有所有权限
+    if (req.user.role === 'super_admin' || req.user.role === 'admin') {
       next();
       return;
     }

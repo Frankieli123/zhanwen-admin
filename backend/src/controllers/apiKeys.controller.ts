@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import { createError } from '@/middleware/error.middleware';
 import { ApiResponse, PaginatedResponse } from '@/types/api.types';
 import { generateApiKey } from '@/utils/apiKey';
+import { logger } from '@/utils/logger';
 
 const prisma = new PrismaClient();
 
@@ -13,6 +14,14 @@ export const getApiKeys = async (req: Request, res: Response): Promise<void> => 
   const page = parseInt(req.query.page as string) || 1;
   const limit = parseInt(req.query.limit as string) || 10;
   const search = req.query.search as string;
+  const reqMeta = {
+    method: req.method,
+    path: (req as any).originalUrl || req.url,
+    userId: (req as any).user?.userId,
+    ip: (req.headers['x-forwarded-for'] as string) || (req as any).ip,
+  };
+  const t0 = Date.now();
+  logger.info('API getApiKeys: start', { ...reqMeta, page, limit, hasSearch: Boolean(search) });
 
   const skip = (page - 1) * limit;
 
@@ -48,6 +57,13 @@ export const getApiKeys = async (req: Request, res: Response): Promise<void> => 
     prisma.apiKey.count({ where: whereClause }),
   ]);
 
+  const duration = Date.now() - t0;
+  if (duration > 1000) {
+    logger.warn('API getApiKeys: slow query', { ...reqMeta, durationMs: duration, returned: apiKeys.length, total });
+  } else {
+    logger.debug('API getApiKeys: query complete', { ...reqMeta, durationMs: duration, returned: apiKeys.length, total });
+  }
+
   const totalPages = Math.ceil(total / limit);
 
   const response: PaginatedResponse = {
@@ -64,6 +80,7 @@ export const getApiKeys = async (req: Request, res: Response): Promise<void> => 
     },
   };
 
+  logger.info('API getApiKeys: success', { ...reqMeta, durationMs: Date.now() - t0, returned: apiKeys.length, total, page, limit });
   res.json(response);
 };
 
@@ -72,6 +89,15 @@ export const getApiKeys = async (req: Request, res: Response): Promise<void> => 
  */
 export const getApiKeyById = async (req: Request, res: Response): Promise<void> => {
   const id = parseInt(req.params.id);
+  const reqMeta = {
+    method: req.method,
+    path: (req as any).originalUrl || req.url,
+    userId: (req as any).user?.userId,
+    ip: (req.headers['x-forwarded-for'] as string) || (req as any).ip,
+    id,
+  };
+  const t0 = Date.now();
+  logger.debug('API getApiKeyById: start', reqMeta);
 
   const apiKey = await prisma.apiKey.findUnique({
     where: { id },
@@ -91,6 +117,7 @@ export const getApiKeyById = async (req: Request, res: Response): Promise<void> 
   });
 
   if (!apiKey) {
+    logger.warn('API getApiKeyById: not found', reqMeta);
     throw createError('API Key不存在', 404, 'API_KEY_NOT_FOUND');
   }
 
@@ -100,6 +127,7 @@ export const getApiKeyById = async (req: Request, res: Response): Promise<void> 
     data: apiKey,
   };
 
+  logger.info('API getApiKeyById: success', { ...reqMeta, durationMs: Date.now() - t0 });
   res.json(response);
 };
 
@@ -111,6 +139,18 @@ export const createApiKey = async (req: Request, res: Response): Promise<void> =
 
   // 生成API Key
   const key = generateApiKey();
+  const reqMeta = {
+    method: req.method,
+    path: (req as any).originalUrl || req.url,
+    userId: (req as any).user?.userId,
+    ip: (req.headers['x-forwarded-for'] as string) || (req as any).ip,
+    name,
+    isActive,
+    hasExpiresAt: Boolean(expiresAt),
+    permissionsCount: Array.isArray(permissions) ? permissions.length : 0,
+  };
+  const t0 = Date.now();
+  logger.info('API createApiKey: start', reqMeta);
 
   const apiKey = await prisma.apiKey.create({
     data: {
@@ -139,6 +179,7 @@ export const createApiKey = async (req: Request, res: Response): Promise<void> =
     data: apiKey,
   };
 
+  logger.info('API createApiKey: success', { ...reqMeta, durationMs: Date.now() - t0, id: apiKey.id });
   res.status(201).json(response);
 };
 
@@ -148,12 +189,22 @@ export const createApiKey = async (req: Request, res: Response): Promise<void> =
 export const updateApiKey = async (req: Request, res: Response): Promise<void> => {
   const id = parseInt(req.params.id);
   const { name, permissions, description, isActive, expiresAt } = req.body;
+  const reqMeta = {
+    method: req.method,
+    path: (req as any).originalUrl || req.url,
+    userId: (req as any).user?.userId,
+    ip: (req.headers['x-forwarded-for'] as string) || (req as any).ip,
+    id,
+  };
+  const t0 = Date.now();
+  logger.info('API updateApiKey: start', { ...reqMeta, hasName: Boolean(name), hasPermissions: Array.isArray(permissions), hasExpiresAt: Boolean(expiresAt) });
 
   const existingApiKey = await prisma.apiKey.findUnique({
     where: { id },
   });
 
   if (!existingApiKey) {
+    logger.warn('API updateApiKey: not found', reqMeta);
     throw createError('API Key不存在', 404, 'API_KEY_NOT_FOUND');
   }
 
@@ -187,6 +238,7 @@ export const updateApiKey = async (req: Request, res: Response): Promise<void> =
     data: updatedApiKey,
   };
 
+  logger.info('API updateApiKey: success', { ...reqMeta, durationMs: Date.now() - t0 });
   res.json(response);
 };
 
@@ -195,6 +247,15 @@ export const updateApiKey = async (req: Request, res: Response): Promise<void> =
  */
 export const deleteApiKey = async (req: Request, res: Response): Promise<void> => {
   const id = parseInt(req.params.id);
+  const reqMeta = {
+    method: req.method,
+    path: (req as any).originalUrl || req.url,
+    userId: (req as any).user?.userId,
+    ip: (req.headers['x-forwarded-for'] as string) || (req as any).ip,
+    id,
+  };
+  const t0 = Date.now();
+  logger.info('API deleteApiKey: start', reqMeta);
 
   const existingApiKey = await prisma.apiKey.findUnique({
     where: { id },
@@ -213,6 +274,7 @@ export const deleteApiKey = async (req: Request, res: Response): Promise<void> =
     message: 'API Key删除成功',
   };
 
+  logger.info('API deleteApiKey: success', { ...reqMeta, durationMs: Date.now() - t0 });
   res.json(response);
 };
 
@@ -221,6 +283,15 @@ export const deleteApiKey = async (req: Request, res: Response): Promise<void> =
  */
 export const regenerateApiKey = async (req: Request, res: Response): Promise<void> => {
   const id = parseInt(req.params.id);
+  const reqMeta = {
+    method: req.method,
+    path: (req as any).originalUrl || req.url,
+    userId: (req as any).user?.userId,
+    ip: (req.headers['x-forwarded-for'] as string) || (req as any).ip,
+    id,
+  };
+  const t0 = Date.now();
+  logger.info('API regenerateApiKey: start', reqMeta);
 
   const existingApiKey = await prisma.apiKey.findUnique({
     where: { id },
@@ -259,6 +330,7 @@ export const regenerateApiKey = async (req: Request, res: Response): Promise<voi
     data: updatedApiKey,
   };
 
+  logger.info('API regenerateApiKey: success', { ...reqMeta, durationMs: Date.now() - t0 });
   res.json(response);
 };
 
@@ -267,6 +339,16 @@ export const regenerateApiKey = async (req: Request, res: Response): Promise<voi
  */
 export const batchDeleteApiKeys = async (req: Request, res: Response): Promise<void> => {
   const { ids } = req.body;
+  const reqMeta = {
+    method: req.method,
+    path: (req as any).originalUrl || req.url,
+    userId: (req as any).user?.userId,
+    ip: (req.headers['x-forwarded-for'] as string) || (req as any).ip,
+    count: Array.isArray(ids) ? ids.length : 0,
+    sample: Array.isArray(ids) ? ids.slice(0, 5) : [],
+  };
+  const t0 = Date.now();
+  logger.info('API batchDeleteApiKeys: start', reqMeta);
 
   if (!Array.isArray(ids) || ids.length === 0) {
     throw createError('请提供要删除的API Key ID列表', 400, 'INVALID_IDS');
@@ -284,5 +366,6 @@ export const batchDeleteApiKeys = async (req: Request, res: Response): Promise<v
     data: { deletedCount: deleteResult.count },
   };
 
+  logger.info('API batchDeleteApiKeys: success', { ...reqMeta, durationMs: Date.now() - t0, deleted: deleteResult.count });
   res.json(response);
 };

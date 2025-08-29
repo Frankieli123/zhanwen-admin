@@ -12,6 +12,7 @@ import {
   getEndpointStats,
   getGeoAnalysis,
   getDeviceAnalysis,
+  getMetricsData,
   exportUsageReport,
 } from '../controllers/usage.controller';
 
@@ -30,11 +31,13 @@ router.get(
       clientId: Joi.string().trim().max(100).optional(),
       startDate: Joi.date().optional(),
       endDate: Joi.date().optional(),
+      period: Joi.string().optional(), // 添加period参数支持
+      groupBy: Joi.string().optional(), // 添加groupBy参数支持
       page: Joi.number().integer().min(1).default(1),
       limit: Joi.number().integer().min(1).max(100).default(20),
       sortBy: Joi.string().valid('createdAt', 'responseTimeMs', 'status', 'id').default('createdAt'),
       sortOrder: Joi.string().valid('asc', 'desc').default('desc'),
-    })
+    }).options({ allowUnknown: true }) // 允许未知参数
   }),
   getApiLogs
 );
@@ -49,8 +52,9 @@ router.get(
       clientId: Joi.string().trim().max(100).optional(),
       startDate: Joi.date().optional(),
       endDate: Joi.date().optional(),
+      period: Joi.string().optional(),
       groupBy: Joi.string().valid('hour', 'day', 'week', 'month').default('day'),
-    })
+    }).options({ allowUnknown: true }) // 允许未知参数（例如 period）
   }),
   getUsageMetrics
 );
@@ -145,6 +149,24 @@ router.get(
     })
   }),
   getDeviceAnalysis
+);
+
+// /usage/metrics-data
+router.get(
+  '/usage/metrics-data',
+  requirePermission('analytics:read'),
+  validate({
+    query: Joi.object({
+      apiKeyId: Joi.number().integer().positive().optional(),
+      clientId: Joi.string().trim().max(100).optional(),
+      startDate: Joi.date().optional(),
+      endDate: Joi.date().optional(),
+      metricName: Joi.string().trim().max(100).optional(),
+      limit: Joi.number().integer().min(1).max(1000).default(100),
+      groupBy: Joi.string().valid('hour', 'day', 'week', 'month').optional(),
+    }).options({ allowUnknown: true })
+  }),
+  getMetricsData
 );
 
 // /usage/export
