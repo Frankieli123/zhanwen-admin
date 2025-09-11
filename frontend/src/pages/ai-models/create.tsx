@@ -120,14 +120,14 @@ export const AIModelCreate: React.FC = () => {
         setProviders(response.data);
       }
     } catch (error) {
-      console.error("加载提供商失败:", error);
+      console.error("加载服务商失败:", error);
     }
   };
 
   const handleProviderChange = (value: number | string) => {
     if (value === 'custom') {
       setShowCustomProvider(true);
-      setSelectedProvider({ name: 'custom', displayName: '自定义提供商' });
+      setSelectedProvider({ name: 'custom', displayName: '自定义服务商' });
       setAvailableModels([]);
       form?.setFieldsValue({ name: undefined, customApiUrl: undefined });
     } else {
@@ -144,7 +144,7 @@ export const AIModelCreate: React.FC = () => {
     const customApiUrl = form?.getFieldValue('customApiUrl');
 
     if (!selectedProvider) {
-      message.error('请先选择AI提供商');
+      message.error('请先选择AI服务商');
       return;
     }
 
@@ -154,7 +154,7 @@ export const AIModelCreate: React.FC = () => {
     }
 
     if (selectedProvider.name === 'custom' && !customApiUrl) {
-      message.error('自定义提供商请先输入API地址');
+      message.error('自定义服务商请先输入API地址');
       return;
     }
 
@@ -186,7 +186,7 @@ export const AIModelCreate: React.FC = () => {
     const customApiUrl = form?.getFieldValue('customApiUrl');
 
     if (!selectedProvider || !apiKey) {
-      message.error('请先选择提供商并输入API密钥');
+      message.error('请先选择服务商并输入API密钥');
       return;
     }
 
@@ -261,7 +261,7 @@ export const AIModelCreate: React.FC = () => {
     const customApiUrl = form?.getFieldValue('customApiUrl');
 
     if (!selectedProvider || !apiKey) {
-      message.error('请先选择提供商并输入API密钥');
+      message.error('请先选择服务商并输入API密钥');
       return;
     }
 
@@ -342,7 +342,7 @@ export const AIModelCreate: React.FC = () => {
     const customApiUrl = form?.getFieldValue('customApiUrl');
 
     if (!selectedProvider) {
-      message.error('请先选择AI提供商');
+      message.error('请先选择AI服务商');
       return;
     }
 
@@ -352,7 +352,7 @@ export const AIModelCreate: React.FC = () => {
     }
 
     if (selectedProvider.name === 'custom' && !customApiUrl) {
-      message.error('自定义提供商请先输入API地址');
+      message.error('自定义服务商请先输入API地址');
       return;
     }
 
@@ -400,28 +400,28 @@ export const AIModelCreate: React.FC = () => {
           <Col xs={24} lg={12}>
             <Card title="基本信息" size="small">
               <Form.Item
-                label="AI提供商"
+                label="AI服务商"
                 name="providerId"
-                rules={[{ required: true, message: "请选择AI提供商" }]}
+                rules={[{ required: true, message: "请选择AI服务商" }]}
               >
                 <Select
-                  placeholder="选择AI提供商"
+                  placeholder="选择AI服务商"
                   onChange={handleProviderChange}
                   options={[
                     ...providers.map((provider) => ({
                       label: provider.displayName,
                       value: provider.id,
                     })),
-                    { label: "自定义提供商", value: "custom" }
+                    { label: "自定义服务商", value: "custom" }
                   ]}
                 />
               </Form.Item>
 
               {showCustomProvider && (
                 <Form.Item
-                  label="提供商名称"
+                  label="服务商名称"
                   name="customProviderName"
-                  rules={[{ required: true, message: "请输入提供商名称" }]}
+                  rules={[{ required: true, message: "请输入服务商名称" }]}
                 >
                   <Input placeholder="例如: GMI Serving" />
                 </Form.Item>

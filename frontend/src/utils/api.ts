@@ -341,7 +341,7 @@ export const authAPI = {
 
 // AI模型相关API
 export const aiModelsAPI = {
-  // 获取AI模型列表
+  // 获取模型列表
   getModels: (params?: any) => api.getPaginated('/ai-models', params),
 
   // 获取AI模型详情
@@ -365,13 +365,13 @@ export const aiModelsAPI = {
   // 获取AI模型统计
   getModelStats: (id: number, days?: number) => api.get(`/ai-models/${id}/stats`, { params: { days } }),
 
-  // 获取AI提供商列表
+  // 获取AI服务商列表
   getProviders: (params?: any) => api.getPaginated('/ai-providers', params),
 
-  // 获取活跃的AI提供商
+  // 获取活跃的AI服务商
   getActiveProviders: () => api.get('/ai-providers/active'),
 
-  // 获取AI提供商详情
+  // 获取AI服务商详情
   getProvider: (id: number) => api.get(`/ai-providers/${id}`),
 
   // 获取当前活跃AI配置

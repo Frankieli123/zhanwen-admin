@@ -13,6 +13,7 @@ model AiProvider {
   displayName     String    @map("display_name") @db.VarChar(100)
   baseUrl         String    @map("base_url")
   authType        String    @default("api_key") @map("auth_type") @db.VarChar(20)
+  apiKeyEncrypted String?   @map("api_key_encrypted")
   supportedModels String[]  @default([]) @map("supported_models")
   rateLimitRpm    Int       @default(60) @map("rate_limit_rpm")
   rateLimitTpm    Int       @default(60000) @map("rate_limit_tpm")
@@ -31,7 +32,6 @@ model AiModel {
   name            String       @db.VarChar(100)
   displayName     String       @map("display_name") @db.VarChar(100)
   apiKeyEncrypted String?      @map("api_key_encrypted")
-  customApiUrl    String?      @map("custom_api_url") @db.VarChar(500)
   modelType       String       @default("chat") @map("model_type") @db.VarChar(50)
   parameters      Json         @default("{\"top_p\": 1.0, \"max_tokens\": 3000, \"temperature\": 0.7, \"presence_penalty\": 0.0, \"frequency_penalty\": 0.0}")
   role            String       @default("secondary") @db.VarChar(20)
@@ -42,6 +42,7 @@ model AiModel {
   metadata        Json         @default("{}")
   createdAt       DateTime     @default(now()) @map("created_at")
   updatedAt       DateTime     @updatedAt @map("updated_at")
+  customApiUrl    String?      @map("custom_api_url") @db.VarChar(500)
   provider        AiProvider   @relation(fields: [providerId], references: [id], onDelete: Cascade)
   apiCallLogs     ApiCallLog[]
 
@@ -144,25 +145,25 @@ model I18nContent {
 }
 
 model ApiCallLog {
-  id             BigInt   @id @default(autoincrement())
-  modelId        Int?     @map("model_id")
-  requestId      String?  @map("request_id") @db.VarChar(100)
-  userId         String?  @map("user_id") @db.VarChar(100)
-  clientId       String?  @map("client_id") @db.VarChar(100)
-  sessionId      String?  @map("session_id") @db.VarChar(100)
-  platform       String?  @db.VarChar(20)
-  promptHash     String?  @map("prompt_hash") @db.VarChar(64)
-  tokensUsed     Int?     @map("tokens_used")
-  cost           Decimal? @db.Decimal(10, 6)
-  responseTimeMs Int?     @map("response_time_ms")
-  status         String?  @db.VarChar(20)
-  errorMessage   String?  @map("error_message")
-  metadata       Json     @default("{}")
-  clientInfo     Json?    @map("client_info")
+  id             BigInt     @id @default(autoincrement())
+  modelId        Int?       @map("model_id")
+  requestId      String?    @map("request_id") @db.VarChar(100)
+  userId         String?    @map("user_id") @db.VarChar(100)
+  platform       String?    @db.VarChar(20)
+  promptHash     String?    @map("prompt_hash") @db.VarChar(64)
+  tokensUsed     Int?       @map("tokens_used")
+  cost           Decimal?   @db.Decimal(10, 6)
+  responseTimeMs Int?       @map("response_time_ms")
+  status         String?    @db.VarChar(20)
+  errorMessage   String?    @map("error_message")
+  metadata       Json       @default("{}")
+  createdAt      DateTime   @default(now()) @map("created_at")
+  clientId       String?    @map("client_id") @db.VarChar(100)
+  clientInfo     Json?      @map("client_info")
+  sessionId      String?    @map("session_id") @db.VarChar(100)
   timestamp      DateTime?
-  createdAt      DateTime @default(now()) @map("created_at")
-  model          AiModel? @relation(fields: [modelId], references: [id])
-  client         ClientApp? @relation(fields: [clientId], references: [clientId], onDelete: SetNull)
+  client         ClientApp? @relation(fields: [clientId], references: [clientId])
+  model          AiModel?   @relation(fields: [modelId], references: [id])
 
   @@index([clientId])
   @@index([sessionId])
@@ -173,18 +174,18 @@ model ApiCallLog {
 }
 
 model UsageStatistic {
-  id          BigInt   @id @default(autoincrement())
-  date        DateTime @db.Date
-  platform    String   @db.VarChar(20)
-  clientId    String?  @map("client_id") @db.VarChar(100)
-  sessionId   String?  @map("session_id") @db.VarChar(100)
-  userId      String?  @map("user_id") @db.VarChar(100)
-  metricName  String   @map("metric_name") @db.VarChar(100)
-  metricValue BigInt   @map("metric_value")
-  metadata    Json     @default("{}")
-  clientInfo  Json?    @map("client_info")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id          BigInt     @id @default(autoincrement())
+  date        DateTime   @db.Date
+  platform    String     @db.VarChar(20)
+  metricName  String     @map("metric_name") @db.VarChar(100)
+  metricValue BigInt     @map("metric_value")
+  metadata    Json       @default("{}")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  clientId    String?    @map("client_id") @db.VarChar(100)
+  clientInfo  Json?      @map("client_info")
+  sessionId   String?    @map("session_id") @db.VarChar(100)
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+  userId      String?    @map("user_id") @db.VarChar(100)
   client      ClientApp? @relation(fields: [clientId], references: [clientId])
 
   @@unique([date, platform, clientId, metricName])
@@ -256,15 +257,6 @@ model ClientApp {
   contactEmail    String?          @map("contact_email") @db.VarChar(100)
   isActive        Boolean          @default(true) @map("is_active")
   apiKeyId        Int?             @map("api_key_id")
-  userAgent       String?          @map("user_agent")
-  language        String?          @db.VarChar(10)
-  timezone        String?          @db.VarChar(50)
-  screenInfo      Json?            @map("screen_info")
-  deviceInfo      Json?            @map("device_info")
-  networkInfo     Json?            @map("network_info")
-  appVersion      String?          @map("app_version") @db.VarChar(20)
-  buildTime       DateTime?        @map("build_time")
-  firstSeen       DateTime         @default(now()) @map("first_seen")
   lastActiveAt    DateTime?        @map("last_active_at")
   totalRequests   Int              @default(0) @map("total_requests")
   totalTokens     BigInt           @default(0) @map("total_tokens")
@@ -272,11 +264,58 @@ model ClientApp {
   metadata        Json             @default("{}")
   createdAt       DateTime         @default(now()) @map("created_at")
   updatedAt       DateTime         @updatedAt @map("updated_at")
-  apiKey          ApiKey?          @relation(fields: [apiKeyId], references: [id])
+  appVersion      String?          @map("app_version") @db.VarChar(20)
+  buildTime       DateTime?        @map("build_time")
+  deviceInfo      Json?            @map("device_info")
+  firstSeen       DateTime         @default(now()) @map("first_seen")
+  language        String?          @db.VarChar(10)
+  networkInfo     Json?            @map("network_info")
+  screenInfo      Json?            @map("screen_info")
+  timezone        String?          @db.VarChar(50)
+  userAgent       String?          @map("user_agent")
   apiCallLogs     ApiCallLog[]
+  apiKey          ApiKey?          @relation(fields: [apiKeyId], references: [id])
   usageStatistics UsageStatistic[]
 
   @@index([platform])
   @@index([lastActiveAt])
   @@map("client_apps")
+}
+
+model PublicPrompt {
+  id         Int      @id @default(autoincrement())
+  name       String   @db.VarChar(100)
+  version    String   @default("1") @db.VarChar(50)
+  platform   String   @db.VarChar(20)
+  scene      String   @db.VarChar(50)
+  language   String   @db.VarChar(10)
+  isActive   Boolean  @default(true) @map("is_active")
+  messages   Json
+  variables  Json     @default("{}")
+  formatting Json?
+  overrides  Json?
+  metadata   Json     @default("{}")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@unique([name, platform, scene, language, version])
+  @@index([name])
+  @@index([platform, scene, language])
+  @@index([isActive])
+  @@map("public_prompts")
+}
+
+model PromptText {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(100)
+  version   String   @default("1") @db.VarChar(50)
+  isActive  Boolean  @default(true) @map("is_active")
+  texts     Json
+  metadata  Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([name, version])
+  @@index([isActive])
+  @@map("prompt_texts")
 }

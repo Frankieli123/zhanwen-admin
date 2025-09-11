@@ -85,7 +85,7 @@ interface AppSettings {
 #### 3.1.1 AI模型配置管理
 - **API配置**: URL、密钥、模型选择
 - **参数调优**: temperature、max_tokens、top_p
-- **提供商管理**: DeepSeek、OpenAI、Claude等
+- **服务商管理**: DeepSeek、OpenAI、Claude等
 - **备用模型**: 主备切换机制
 
 #### 3.1.2 提示词模板管理

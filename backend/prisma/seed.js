@@ -30,7 +30,7 @@ async function main() {
         },
     });
     console.log('✅ 创建管理员用户:', adminUser.username);
-    // 2. 创建AI服务提供商
+    // 2. 创建AI服务服务商
     const providers = [
         {
             name: 'deepseek',
@@ -63,7 +63,7 @@ async function main() {
             update: {},
             create: provider,
         });
-        console.log('✅ 创建AI提供商:', createdProvider.displayName);
+        console.log('✅ 创建AI服务商:', createdProvider.displayName);
     }
     // 3. 创建默认AI模型配置
     const deepseekProvider = await prisma.aiProvider.findUnique({

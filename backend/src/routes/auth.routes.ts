@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { verifyPassword, hashPassword } from '@/utils/encryption';
-import { generateToken, decodeToken, refreshToken } from '@/utils/jwt';
+import { generateToken, generateRefreshToken } from '@/utils/jwt';
 import { asyncHandler, createError } from '@/middleware/error.middleware';
 import { validate } from '@/middleware/validation.middleware';
 import { authenticateToken } from '@/middleware/auth.middleware';
@@ -12,7 +12,6 @@ import { logger } from '@/utils/logger';
 import { ApiResponse, LoginResponse } from '@/types/api.types';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 /**
  * @swagger
@@ -25,17 +24,21 @@ const prisma = new PrismaClient();
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required:
- *               - username
- *               - password
- *             properties:
- *               username:
- *                 type: string
- *               password:
- *                 type: string
- *               remember:
- *                 type: boolean
+ *             oneOf:
+ *               - type: object
+ *                 required: [username, password]
+ *                 properties:
+ *                   username:
+ *                     type: string
+ *                   password:
+ *                     type: string
+ *               - type: object
+ *                 required: [email, password]
+ *                 properties:
+ *                   email:
+ *                     type: string
+ *                   password:
+ *                     type: string
  *     responses:
  *       200:
  *         description: 登录成功
@@ -47,7 +50,7 @@ router.post(
   validate(authValidation.login),
   sensitiveAuditLog('login', '用户登录'),
   asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const { username, email, password, remember } = req.body;
+    const { username, email, password } = req.body;
 
     // 支持用户名或邮箱登录
     const loginField = username || email;
@@ -82,20 +85,13 @@ router.post(
       data: { lastLoginAt: new Date() },
     });
 
-    // 生成JWT token
+    // 生成访问令牌与刷新令牌
     const token = generateToken(user);
+    const refreshTokenStr = generateRefreshToken(user);
 
     const loginResponse: LoginResponse = {
       token,
-      user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        fullName: user.fullName || user.username,
-        role: user.role,
-        permissions: user.permissions as string[],
-      },
-      expiresIn: process.env['JWT_EXPIRES_IN'] || '7d',
+      refreshToken: refreshTokenStr,
     };
 
     const response: ApiResponse<LoginResponse> = {
@@ -183,10 +179,23 @@ router.get(
       throw createError('用户不存在', 404, 'USER_NOT_FOUND');
     }
 
+    // 将后端字段映射为前端所需结构
+    const roles = user.role ? [user.role] : [];
+    const buttons = Array.isArray(user.permissions) ? (user.permissions as string[]) : [];
+
+    const mappedUser = {
+      userId: user.id,
+      userName: user.username,
+      roles,
+      buttons,
+      email: user.email ?? undefined,
+      // 预留可选字段，当前模型未包含：avatar、phone
+    };
+
     const response: ApiResponse = {
       success: true,
       message: '获取用户信息成功',
-      data: user,
+      data: mappedUser,
     };
 
     res.json(response);
@@ -264,66 +273,6 @@ router.put(
     const response: ApiResponse = {
       success: true,
       message: '密码修改成功',
-    };
-
-    res.json(response);
-  })
-);
-
-/**
- * @swagger
- * /auth/refresh:
- *   post:
- *     summary: 刷新Token
- *     tags: [Authentication]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Token刷新成功
- */
-router.post(
-  '/refresh',
-  asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const authHeader = req.headers.authorization || '';
-    const token = authHeader.startsWith('Bearer ')
-      ? authHeader.slice(7)
-      : undefined;
-
-    if (!token) {
-      throw createError('缺少认证token', 401, 'NO_TOKEN');
-    }
-
-    // 验证签名但忽略过期，生成新token
-    let newToken: string;
-    try {
-      newToken = refreshToken(token);
-    } catch (err) {
-      throw createError('Token刷新失败', 401, 'REFRESH_FAILED');
-    }
-
-    // 解析旧token以获取用户ID，并确认用户仍有效
-    const payload = decodeToken(token);
-    if (!payload?.userId) {
-      throw createError('Token无效', 401, 'INVALID_TOKEN');
-    }
-
-    const user = await prisma.adminUser.findUnique({
-      where: { id: payload.userId },
-      select: { id: true, isActive: true },
-    });
-
-    if (!user || !user.isActive) {
-      throw createError('用户不存在或已被禁用', 401, 'USER_INVALID');
-    }
-
-    const response: ApiResponse = {
-      success: true,
-      message: 'Token刷新成功',
-      data: {
-        token: newToken,
-        expiresIn: process.env['JWT_EXPIRES_IN'] || '7d',
-      },
     };
 
     res.json(response);

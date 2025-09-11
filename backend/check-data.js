@@ -20,9 +20,9 @@ async function checkData() {
       console.log(`  - ${model.name} (${model.displayName}) - ${model.status}`);
     });
     
-    // 检查AI提供商
+    // 检查AI服务商
     const aiProviders = await prisma.aiProvider.findMany();
-    console.log(`\n🏢 AI提供商: ${aiProviders.length} 条记录`);
+    console.log(`\n🏢 AI服务商: ${aiProviders.length} 条记录`);
     aiProviders.forEach(provider => {
       console.log(`  - ${provider.name} (${provider.displayName}) - ${provider.status}`);
     });

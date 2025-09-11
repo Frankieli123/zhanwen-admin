@@ -21,7 +21,7 @@ async function checkAIModels() {
       console.log(`  角色: ${model.role}`);
       console.log(`  激活状态: ${model.isActive ? '已激活' : '未激活'}`);
       console.log(`  API密钥: ${model.apiKeyEncrypted ? '已配置' : '未配置'}`);
-      console.log(`  提供商: ${model.provider?.displayName || '未知'}`);
+      console.log(`  服务商: ${model.provider?.displayName || '未知'}`);
       console.log(`  优先级: ${model.priority}`);
     });
     

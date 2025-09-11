@@ -1,10 +1,8 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { createError } from '@/middleware/error.middleware';
 import { logger } from '@/utils/logger';
 import { generateClientId } from '@/utils/clientId';
-
-const prisma = new PrismaClient();
 
 // 获取所有客户端应用
 export const getClients = async (req: Request, res: Response) => {

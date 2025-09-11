@@ -8,12 +8,12 @@
 
 ## 2. 核心表结构设计
 
-### 2.1 AI服务提供商表 (ai_providers)
+### 2.1 AI服务服务商表 (ai_providers)
 
 ```sql
 CREATE TABLE ai_providers (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL UNIQUE,           -- 提供商名称
+    name VARCHAR(100) NOT NULL UNIQUE,           -- 服务商名称
     display_name VARCHAR(100) NOT NULL,          -- 显示名称
     base_url TEXT NOT NULL,                      -- API基础URL
     auth_type VARCHAR(20) DEFAULT 'api_key',     -- 认证类型
@@ -341,7 +341,7 @@ CREATE TRIGGER increment_app_configs_version
 
 ## 6. 初始化数据
 
-### 6.1 默认AI提供商
+### 6.1 默认AI服务商
 
 ```sql
 INSERT INTO ai_providers (name, display_name, base_url, supported_models) VALUES

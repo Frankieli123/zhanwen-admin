@@ -143,7 +143,7 @@ export const AIModelShow: React.FC = () => {
               <Descriptions.Item label="模型名称">
                 <TextField value={record?.name} />
               </Descriptions.Item>
-              <Descriptions.Item label="提供商">
+              <Descriptions.Item label="服务商">
                 <Tag color="green">{record?.provider?.displayName}</Tag>
               </Descriptions.Item>
               <Descriptions.Item label="模型类型">

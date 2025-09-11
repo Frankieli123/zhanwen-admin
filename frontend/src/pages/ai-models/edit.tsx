@@ -116,10 +116,10 @@ export const AIModelEdit: React.FC = () => {
       if (provider) {
         setSelectedProvider(provider);
       } else {
-        // 如果找不到提供商，可能是自定义提供商
+        // 如果找不到服务商，可能是自定义服务商
         setSelectedProvider({
           name: 'custom',
-          displayName: modelData.provider?.displayName || '自定义提供商',
+          displayName: modelData.provider?.displayName || '自定义服务商',
           id: modelData.providerId
         });
       }
@@ -153,7 +153,7 @@ export const AIModelEdit: React.FC = () => {
         setProviders(response.data);
       }
     } catch (error) {
-      console.error("加载提供商失败:", error);
+      console.error("加载服务商失败:", error);
     }
   };
 
@@ -162,7 +162,7 @@ export const AIModelEdit: React.FC = () => {
     setSelectedProvider(provider);
     setAvailableModels([]);
 
-    // 如果是DeepSeek提供商，自动填充API地址
+    // 如果是DeepSeek服务商，自动填充API地址
     if (provider?.name === 'deepseek') {
       form?.setFieldsValue({ customApiUrl: 'https://api.gmi-serving.com/v1' });
     }
@@ -174,7 +174,7 @@ export const AIModelEdit: React.FC = () => {
     const customApiUrl = form?.getFieldValue('customApiUrl');
 
     if (!selectedProvider || !apiKey) {
-      message.error('请先选择提供商并输入API密钥');
+      message.error('请先选择服务商并输入API密钥');
       return;
     }
 
@@ -249,7 +249,7 @@ export const AIModelEdit: React.FC = () => {
     const customApiUrl = form?.getFieldValue('customApiUrl');
 
     if (!selectedProvider || !apiKey) {
-      message.error('请先选择提供商并输入API密钥');
+      message.error('请先选择服务商并输入API密钥');
       return;
     }
 
@@ -330,7 +330,7 @@ export const AIModelEdit: React.FC = () => {
     const customApiUrl = form?.getFieldValue('customApiUrl');
 
     if (!selectedProvider) {
-      message.error('请先选择AI提供商');
+      message.error('请先选择AI服务商');
       return;
     }
 
@@ -340,7 +340,7 @@ export const AIModelEdit: React.FC = () => {
     }
 
     if (selectedProvider.name === 'custom' && !customApiUrl) {
-      message.error('自定义提供商请先输入API地址');
+      message.error('自定义服务商请先输入API地址');
       return;
     }
 
@@ -371,7 +371,7 @@ export const AIModelEdit: React.FC = () => {
     const customApiUrl = form?.getFieldValue('customApiUrl');
 
     if (!selectedProvider) {
-      message.error('请先选择AI提供商');
+      message.error('请先选择AI服务商');
       return;
     }
 
@@ -381,7 +381,7 @@ export const AIModelEdit: React.FC = () => {
     }
 
     if (selectedProvider.name === 'custom' && !customApiUrl) {
-      message.error('自定义提供商请先输入API地址');
+      message.error('自定义服务商请先输入API地址');
       return;
     }
 
@@ -441,12 +441,12 @@ export const AIModelEdit: React.FC = () => {
           <Col xs={24} lg={12}>
             <Card title="基本信息" size="small">
               <Form.Item
-                label="AI提供商"
+                label="AI服务商"
                 name="providerId"
-                rules={[{ required: true, message: "请选择AI提供商" }]}
+                rules={[{ required: true, message: "请选择AI服务商" }]}
               >
                 <Select
-                  placeholder="选择AI提供商"
+                  placeholder="选择AI服务商"
                   onChange={handleProviderChange}
                   options={providers.map((provider) => ({
                     label: provider.displayName,

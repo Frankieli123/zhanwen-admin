@@ -3,6 +3,8 @@ import { AdminUser } from '@prisma/client';
 
 const JWT_SECRET = process.env['JWT_SECRET'] || 'default-jwt-secret-change-in-production';
 const JWT_EXPIRES_IN = process.env['JWT_EXPIRES_IN'] || '7d';
+const JWT_REFRESH_SECRET = process.env['JWT_REFRESH_SECRET'] || 'default-refresh-secret-change-in-production';
+const JWT_REFRESH_EXPIRES_IN = process.env['JWT_REFRESH_EXPIRES_IN'] || '30d';
 
 export interface JwtPayload {
   userId: number;
@@ -34,6 +36,26 @@ export const generateToken = (user: AdminUser): string => {
 };
 
 /**
+ * 生成Refresh Token（与访问Token使用不同秘钥与过期时间）
+ */
+export const generateRefreshToken = (user: AdminUser): string => {
+  const payload: Omit<JwtPayload, 'iat' | 'exp'> & { tokenType: 'refresh' } = {
+    userId: user.id,
+    username: user.username,
+    email: user.email,
+    role: user.role,
+    permissions: user.permissions as string[],
+    tokenType: 'refresh',
+  };
+
+  return jwt.sign(payload, JWT_REFRESH_SECRET, {
+    expiresIn: JWT_REFRESH_EXPIRES_IN,
+    issuer: 'divination-admin',
+    audience: 'divination-admin-users',
+  } as SignOptions);
+};
+
+/**
  * 验证JWT Token
  */
 export const verifyToken = (token: string): JwtPayload => {
@@ -52,86 +74,5 @@ export const verifyToken = (token: string): JwtPayload => {
     } else {
       throw new Error('Token验证失败');
     }
-  }
-};
-
-/**
- * 刷新Token
- */
-export const refreshToken = (token: string): string => {
-  try {
-    // 验证当前token（忽略过期时间）
-    const decoded = jwt.verify(token, JWT_SECRET, {
-      ignoreExpiration: true,
-      issuer: 'divination-admin',
-      audience: 'divination-admin-users',
-    }) as JwtPayload;
-
-    // 生成新token
-    const newPayload: Omit<JwtPayload, 'iat' | 'exp'> = {
-      userId: decoded.userId,
-      username: decoded.username,
-      email: decoded.email,
-      role: decoded.role,
-      permissions: decoded.permissions,
-    };
-
-    return jwt.sign(newPayload, JWT_SECRET, {
-      expiresIn: JWT_EXPIRES_IN,
-      issuer: 'divination-admin',
-      audience: 'divination-admin-users',
-    } as SignOptions);
-  } catch (error) {
-    throw new Error('Token刷新失败');
-  }
-};
-
-/**
- * 解码Token（不验证）
- */
-export const decodeToken = (token: string): JwtPayload | null => {
-  try {
-    const decoded = jwt.decode(token) as JwtPayload;
-    return decoded;
-  } catch (error) {
-    return null;
-  }
-};
-
-/**
- * 检查Token是否即将过期（30分钟内）
- */
-export const isTokenExpiringSoon = (token: string): boolean => {
-  try {
-    const decoded = decodeToken(token);
-    if (!decoded || !decoded.exp) {
-      return true;
-    }
-
-    const now = Math.floor(Date.now() / 1000);
-    const thirtyMinutes = 30 * 60; // 30分钟
-    
-    return (decoded.exp - now) < thirtyMinutes;
-  } catch (error) {
-    return true;
-  }
-};
-
-/**
- * 获取Token剩余有效时间（秒）
- */
-export const getTokenRemainingTime = (token: string): number => {
-  try {
-    const decoded = decodeToken(token);
-    if (!decoded || !decoded.exp) {
-      return 0;
-    }
-
-    const now = Math.floor(Date.now() / 1000);
-    const remaining = decoded.exp - now;
-    
-    return Math.max(0, remaining);
-  } catch (error) {
-    return 0;
   }
 };

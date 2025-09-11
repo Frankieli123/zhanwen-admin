@@ -73,9 +73,11 @@ const promptTemplateService = new PromptTemplateService();
 export const getPromptTemplates = asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const query: PaginationQuery = {
     page: parseInt(req.query['page'] as string) || 1,
-    limit: parseInt(req.query['limit'] as string) || 10,
+    // 兼容前端可能传入的 pageSize 参数
+    limit: parseInt((req.query['limit'] as string) || (req.query['pageSize'] as string)) || 10,
     sort: (req.query['sort'] as 'asc' | 'desc') || 'desc',
-    search: req.query['search'] as string,
+    // 兼容前端可能传入的 name 作为搜索关键词
+    search: (req.query['search'] as string) || (req.query['name'] as string),
     status: req.query['status'] as string,
     category: req.query['category'] as string,
   };

@@ -34,7 +34,7 @@ async function main() {
 
   console.log('✅ 创建管理员用户:', adminUser.username);
 
-  // 2. 创建AI服务提供商
+  // 2. 创建AI服务服务商
   const providers = [
     {
       name: 'deepseek',
@@ -68,7 +68,7 @@ async function main() {
       update: {},
       create: provider,
     });
-    console.log('✅ 创建AI提供商:', createdProvider.displayName);
+    console.log('✅ 创建AI服务商:', createdProvider.displayName);
   }
 
   // 3. 创建默认AI模型配置
@@ -304,6 +304,40 @@ async function main() {
       },
       category: 'features',
       description: '功能开关配置',
+    },
+    // AI 提示词配置（可编辑文本），用于公开接口 /public/configs/web 返回
+    {
+      platform: 'web',
+      configKey: 'ai_prompt.system.zh-CN',
+      configValue: '你是一名经验丰富的易学专家，精通小六壬占卜的解读和应用。你有多年研究传统中国预测学的经验，能够从卦象中解读出深刻的含义并给予有益的指导。',
+      dataType: 'string',
+      category: 'ai_prompt',
+      description: 'system 提示词（zh-CN）',
+      isActive: true,
+    },
+    {
+      platform: 'web',
+      configKey: 'ai_prompt.user.head.zh-CN',
+      configValue: '我需要你根据以下小六壬卦象信息，提供一个详细的解读。',
+      dataType: 'string',
+      category: 'ai_prompt',
+      description: '用户提示词开头文案（zh-CN）',
+      isActive: true,
+    },
+    {
+      platform: 'web',
+      configKey: 'ai_prompt.user.guide.zh-CN',
+      configValue: `请给出详细的解读，包括以下内容：
+1. 卦象综合解析（包括三宫关系和互动的深层含义）
+2. 对用户问题的针对性回答（如果有问题）
+3. 宜忌建议
+4. 未来发展趋势
+5. 化解方法或行动建议
+如果是标题，请用中文数字+顿号开头，如“一、”；副标题，请用中文数字+.开头，如“1.”；内容，如果有顺序请用如“①②③④⑤⑥⑦⑧⑨⑩” 无顺序用“-”`,
+      dataType: 'string',
+      category: 'ai_prompt',
+      description: '用户提示词“格式与内容要求”文案（zh-CN）',
+      isActive: true,
     },
   ];
 

@@ -1,4 +1,4 @@
-import { AiModel, AiProvider } from '@prisma/client';
+import { AiModel, AiProvider, Prisma } from '@prisma/client';
 import { encrypt, decrypt } from '@/utils/encryption';
 import { createError } from '@/middleware/error.middleware';
 import { logger } from '@/utils/logger';
@@ -12,7 +12,7 @@ import {
 
 export class AIModelService {
   /**
-   * 获取AI模型列表（分页）
+   * 获取模型列表（分页）
    */
   async getModels(query: PaginationQuery): Promise<PaginatedResponse<AiModel & { provider: AiProvider }>> {
     const {
@@ -22,6 +22,7 @@ export class AIModelService {
       search,
       category,
       status,
+      provider,
     } = query;
 
     const skip = (page - 1) * limit;
@@ -48,6 +49,12 @@ export class AIModelService {
       where.modelType = category;
     }
 
+    if (provider) {
+      where.provider = {
+        name: { equals: provider, mode: 'insensitive' }
+      };
+    }
+
     try {
       const [models, total] = await Promise.all([
         prisma.aiModel.findMany({
@@ -63,18 +70,21 @@ export class AIModelService {
       ]);
 
       // 解密API密钥用于显示（只显示前几位）
-      const modelsWithMaskedKeys = models.map(model => ({
-        ...model,
-        apiKeyEncrypted: model.apiKeyEncrypted 
-          ? this.maskApiKey(model.apiKeyEncrypted)
-          : null,
-      }));
+      // 当模型未设置密钥时，回退到服务商级密钥进行掩码显示
+      const modelsWithMaskedKeys = models.map(model => {
+        const providerEncrypted = (model as any)?.provider?.apiKeyEncrypted as string | null | undefined;
+        const encrypted = model.apiKeyEncrypted || providerEncrypted || null;
+        return {
+          ...model,
+          apiKeyEncrypted: encrypted ? this.maskApiKey(encrypted) : null,
+        };
+      });
 
       const totalPages = Math.ceil(total / limit);
 
       return {
         success: true,
-        message: '获取AI模型列表成功',
+        message: '获取模型列表成功',
         data: modelsWithMaskedKeys,
         pagination: {
           page,
@@ -86,8 +96,8 @@ export class AIModelService {
         },
       };
     } catch (error) {
-      logger.error('获取AI模型列表失败', error);
-      throw createError('获取AI模型列表失败', 500);
+      logger.error('获取模型列表失败', error);
+      throw createError('获取模型列表失败', 500);
     }
   }
 
@@ -108,9 +118,14 @@ export class AIModelService {
       }
 
       // 解密API密钥用于编辑
-      if (model.apiKeyEncrypted) {
+      // 优先使用模型级密钥，若无则回退到服务商级密钥
+      const modelEncrypted = model.apiKeyEncrypted;
+      const providerEncrypted = (model as any)?.provider?.apiKeyEncrypted as string | null | undefined;
+      const encryptedToUse = modelEncrypted || providerEncrypted || null;
+
+      if (encryptedToUse) {
         try {
-          const decryptedKey = decrypt(model.apiKeyEncrypted);
+          const decryptedKey = decrypt(encryptedToUse);
           return {
             ...model,
             apiKeyEncrypted: decryptedKey,
@@ -124,7 +139,10 @@ export class AIModelService {
         }
       }
 
-      return model;
+      return {
+        ...model,
+        apiKeyEncrypted: null,
+      };
     } catch (error) {
       if (error instanceof Error && error.message.includes('不存在')) {
         throw error;
@@ -142,13 +160,29 @@ export class AIModelService {
       let provider: any;
       let actualProviderId: number;
 
-      // 处理自定义提供商
-      if (data.providerId === 'custom') {
+      // 标准化与校验 providerId，兼容数组、字符串、数字、多选等情况
+      const rawProviderId: any = (data as any).providerId;
+      if (rawProviderId === undefined || rawProviderId === null || rawProviderId === '') {
+        throw createError('providerId 不能为空', 400, 'PROVIDER_ID_REQUIRED');
+      }
+      // 处理多选场景：如果传入数组，仅允许单个；多个直接报错
+      if (Array.isArray(rawProviderId)) {
+        if (rawProviderId.length !== 1) {
+          throw createError('暂不支持为单个模型选择多个服务商', 400, 'MULTIPLE_PROVIDERS_NOT_SUPPORTED');
+        }
+        (data as any).providerId = rawProviderId[0];
+      }
+
+      // 再次读取（可能已从数组归一化）
+      const normalizedProviderId: any = (data as any).providerId;
+
+      // 处理自定义服务商
+      if (normalizedProviderId === 'custom') {
         if (!data.customProviderName) {
-          throw createError('自定义提供商需要提供商名称', 400, 'CUSTOM_PROVIDER_NAME_REQUIRED');
+          throw createError('自定义服务商需要服务商名称', 400, 'CUSTOM_PROVIDER_NAME_REQUIRED');
         }
 
-        // 创建或查找自定义提供商
+        // 创建或查找自定义服务商
         provider = await prisma.aiProvider.upsert({
           where: { name: data.customProviderName.toLowerCase().replace(/\s+/g, '-') },
           update: {},
@@ -162,18 +196,38 @@ export class AIModelService {
         });
         actualProviderId = provider.id;
       } else {
-        // 验证提供商是否存在
-        provider = await prisma.aiProvider.findUnique({
-          where: { id: data.providerId as number },
-        });
+        // 兼容字符串或数字：优先按ID尝试，其次按名称（不区分大小写）
+        const tryFindById = async (idVal: any) => {
+          const idNum = typeof idVal === 'string' ? Number(idVal) : idVal;
+          if (Number.isInteger(idNum) && idNum > 0) {
+            return prisma.aiProvider.findUnique({ where: { id: idNum } });
+          }
+          return null;
+        };
+        const tryFindByName = async (nameVal: any) => {
+          if (typeof nameVal === 'string') {
+            const name = nameVal.trim();
+            if (name.includes(',')) {
+              throw createError('暂不支持为单个模型选择多个服务商', 400, 'MULTIPLE_PROVIDERS_NOT_SUPPORTED');
+            }
+            return prisma.aiProvider.findUnique({ where: { name: name.toLowerCase() } });
+          }
+          return null;
+        };
+
+        // 先按ID找，找不到再按名称找
+        provider = await tryFindById(normalizedProviderId);
+        if (!provider) {
+          provider = await tryFindByName(normalizedProviderId);
+        }
 
         if (!provider) {
-          throw createError('AI提供商不存在', 404, 'PROVIDER_NOT_FOUND');
+          throw createError('AI服务商不存在', 404, 'PROVIDER_NOT_FOUND');
         }
-        actualProviderId = data.providerId as number;
+        actualProviderId = provider.id;
       }
 
-      // 检查模型名称是否已存在（同一提供商下）
+      // 检查模型名称是否已存在（同一服务商下）
       const existingModel = await prisma.aiModel.findUnique({
         where: {
           providerId_name: {
@@ -184,13 +238,16 @@ export class AIModelService {
       });
 
       if (existingModel) {
-        throw createError('该提供商下已存在同名模型', 409, 'MODEL_NAME_EXISTS');
+        throw createError('该服务商下已存在同名模型', 409, 'MODEL_NAME_EXISTS');
       }
 
-      // 加密API密钥
-      let encryptedApiKey = null;
+      // 加密API密钥；若未提供，则继承服务商级密钥
+      let encryptedApiKey: string | null = null;
       if (data.apiKeyEncrypted) {
         encryptedApiKey = encrypt(data.apiKeyEncrypted);
+      } else if (provider?.apiKeyEncrypted) {
+        // 直接复用服务商已加密的密钥以保持一致
+        encryptedApiKey = provider.apiKeyEncrypted as string;
       }
 
       // 如果设置为主模型，需要将其他主模型设置为次要
@@ -228,6 +285,14 @@ export class AIModelService {
         },
       });
 
+      // 若本次显式提供了模型密钥，则将该密钥同步到服务商级，并（可选）后续用于其他模型继承
+      if (data.apiKeyEncrypted && encryptedApiKey) {
+        await prisma.aiProvider.update({
+          where: { id: actualProviderId },
+          data: { apiKeyEncrypted: encryptedApiKey } as Prisma.AiProviderUpdateInput,
+        });
+      }
+
       logger.info('AI模型创建成功', {
         modelId: model.id,
         name: model.name,
@@ -261,8 +326,13 @@ export class AIModelService {
 
       // 加密新的API密钥
       let encryptedApiKey = existingModel.apiKeyEncrypted;
+      let needSyncProviderAndModels = false;
       if (data.apiKeyEncrypted !== undefined) {
         encryptedApiKey = data.apiKeyEncrypted ? encrypt(data.apiKeyEncrypted) : null;
+        // 仅当提供了非空的新密钥时，同步到服务商及其下所有模型
+        if (data.apiKeyEncrypted) {
+          needSyncProviderAndModels = true;
+        }
       }
 
       // 如果设置为主模型，需要将其他主模型设置为次要
@@ -307,6 +377,20 @@ export class AIModelService {
           provider: true,
         },
       });
+
+      // 同步：当模型更新了有效的新密钥时，将其写入服务商并更新该服务商下的所有模型，实现统一
+      if (needSyncProviderAndModels && encryptedApiKey) {
+        await prisma.$transaction([
+          prisma.aiProvider.update({
+            where: { id: existingModel.providerId },
+            data: { apiKeyEncrypted: encryptedApiKey } as Prisma.AiProviderUpdateInput,
+          }),
+          prisma.aiModel.updateMany({
+            where: { providerId: existingModel.providerId },
+            data: { apiKeyEncrypted: encryptedApiKey },
+          }),
+        ]);
+      }
 
       logger.info('AI模型更新成功', {
         modelId: id,
@@ -401,7 +485,7 @@ export class AIModelService {
   /**
    * 测试AI模型连接
    * 测试内容：
-   * 1. API可达性 - 检查能否连接到AI提供商的API服务器
+   * 1. API可达性 - 检查能否连接到AI服务商的API服务器
    * 2. 认证验证 - 验证配置的API密钥是否有效
    * 3. 模型可用性 - 确认指定的模型是否可以正常调用
    * 4. 响应时间 - 测量API响应速度
@@ -468,7 +552,7 @@ export class AIModelService {
   private async performActualAPITest(model: any): Promise<void> {
     const { provider } = model;
 
-    // 根据不同的AI提供商执行不同的测试逻辑
+    // 根据不同的AI服务商执行不同的测试逻辑
     switch (provider.name.toLowerCase()) {
       case 'deepseek':
         await this.testDeepSeekAPI(model);

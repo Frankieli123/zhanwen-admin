@@ -54,26 +54,19 @@ export interface PaginationQuery {
   category?: string;
   status?: string;
   platform?: string;
+  provider?: string;
 }
 
 // 用户认证相关类型
 export interface LoginRequest {
-  username: string;
+  username?: string;
+  email?: string;
   password: string;
-  remember?: boolean;
 }
 
 export interface LoginResponse {
   token: string;
-  user: {
-    id: number;
-    username: string;
-    email: string;
-    fullName: string;
-    role: string;
-    permissions: string[];
-  };
-  expiresIn: string;
+  refreshToken: string;
 }
 
 export interface RegisterRequest {

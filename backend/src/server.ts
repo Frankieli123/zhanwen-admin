@@ -2,10 +2,9 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 
 const app = express();
-const prisma = new PrismaClient();
 const PORT = process.env['PORT'] || 3001;
 
 // 基础中间件
@@ -52,7 +51,7 @@ app.get('/api', (_req, res) => {
       endpoints: [
         'GET /health - 健康检查',
         'POST /auth/login - 用户登录',
-        'GET /api/ai-models - AI模型列表',
+        'GET /api/ai-models - 模型列表',
         'GET /api/prompts - 提示词模板列表',
         'GET /api/configs - 应用配置列表',
       ]

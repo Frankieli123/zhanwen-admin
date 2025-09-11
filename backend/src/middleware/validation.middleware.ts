@@ -28,9 +28,28 @@ export const validate = (schema: {
 
     // 验证查询参数
     if (schema.query) {
-      const { error } = schema.query.validate(req.query);
+      // 先规范化：将空字符串与空数组视为未提供，避免 "不允许为空" 的校验错误
+      const rawQuery = req.query as Record<string, any>;
+      const sanitizedQuery: Record<string, any> = {};
+      for (const [key, val] of Object.entries(rawQuery)) {
+        if (val === '' || val === null || typeof val === 'undefined') continue;
+        if (Array.isArray(val)) {
+          const filtered = val.filter(v => v !== '' && v !== null && typeof v !== 'undefined');
+          if (filtered.length === 0) continue;
+          sanitizedQuery[key] = filtered;
+        } else {
+          sanitizedQuery[key] = val;
+        }
+      }
+
+      // 允许未知查询参数，避免前端附带额外筛选项导致校验失败
+      // 仅对 query 放宽，body 仍保持严格校验
+      const { error, value: qValue } = schema.query.validate(sanitizedQuery, { allowUnknown: true });
       if (error) {
         errors.push(`Query: ${error.details.map(d => d.message).join(', ')}`);
+      } else {
+        // 用 Joi 转换后的值覆盖，获得默认值/类型转换后的 query（如 page/limit 数字化）
+        (req as any).query = qValue;
       }
     }
 
@@ -212,6 +231,7 @@ export const paginationValidation = {
     category: Joi.string().trim().max(50).optional(),
     status: commonValidations.status.optional(),
     platform: commonValidations.platform.optional(),
+    provider: Joi.string().trim().max(50).optional(),
   }),
 };
 
@@ -222,7 +242,8 @@ export const authValidation = {
       username: commonValidations.username.optional(),
       email: commonValidations.email.optional(),
       password: commonValidations.password,
-      remember: Joi.boolean().default(false),
+      // 兼容前端传值，但后端不使用
+      remember: Joi.boolean().optional(),
     }).or('username', 'email'), // 至少需要用户名或邮箱其中一个
   },
   register: {

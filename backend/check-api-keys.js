@@ -32,7 +32,7 @@ async function checkApiKeys() {
       console.log(`名称: ${model.name}`);
       console.log(`显示名称: ${model.displayName}`);
       console.log(`角色: ${model.role}`);
-      console.log(`提供商: ${model.provider.displayName}`);
+      console.log(`服务商: ${model.provider.displayName}`);
       console.log(`API密钥: ${model.apiKeyEncrypted ? '已配置 (长度: ' + model.apiKeyEncrypted.length + ')' : '未配置'}`);
       if (model.apiKeyEncrypted) {
         console.log(`API密钥前缀: ${model.apiKeyEncrypted.substring(0, 10)}...`);

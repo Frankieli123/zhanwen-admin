@@ -1,11 +1,9 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { createError } from '@/middleware/error.middleware';
 import { ApiResponse, PaginatedResponse } from '@/types/api.types';
 import { generateApiKey } from '@/utils/apiKey';
 import { logger } from '@/utils/logger';
-
-const prisma = new PrismaClient();
 
 /**
  * 获取API Key列表

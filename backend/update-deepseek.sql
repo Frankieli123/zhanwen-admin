@@ -1,4 +1,4 @@
--- 更新DeepSeek提供商的API地址
+-- 更新DeepSeek服务商的API地址
 UPDATE ai_providers 
 SET base_url = 'https://api.gmi-serving.com'
 WHERE name = 'deepseek';

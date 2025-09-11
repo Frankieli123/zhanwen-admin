@@ -1,12 +1,101 @@
 import { Router } from 'express';
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { authenticateApiKey, requireApiPermission } from '@/middleware/apiKey.middleware';
+import { authenticateToken } from '@/middleware/auth.middleware';
 import { asyncHandler } from '@/middleware/error.middleware';
+import { logger } from '@/utils/logger';
 import { ApiResponse } from '@/types/api.types';
+import Handlebars from 'handlebars';
+import crypto from 'crypto';
 
 const router = Router();
-const prisma = new PrismaClient();
+
+// 允许“管理员JWT 或 应用API Key”两种方式访问公开数据
+function authPublicAccess(apiPermission: string) {
+  return (req: Request, res: Response, next: any) => {
+    const hasBearer = typeof req.headers.authorization === 'string' && req.headers.authorization.trim() !== ''
+    if (hasBearer) {
+      // 管理端登录态：使用 JWT 鉴权，放行
+      return (authenticateToken as any)(req, res, next)
+    }
+    // 客户端：走 API Key 鉴权 + 权限校验
+    ;(authenticateApiKey as any)(req, res, (err: any) => {
+      if (err) return next(err)
+      return (requireApiPermission(apiPermission) as any)(req, res, next)
+    })
+  }
+}
+
+// 统一构建完整的模型调用 API URL（兼容不同服务商，且避免重复追加）
+function buildFullApiUrl(providerName: string, baseUrl: string): string {
+  if (!baseUrl) return baseUrl;
+  let full = baseUrl.trim();
+  // 已经是最终路径，直接返回
+  if (/\/v1\/chat\/completions\/?$/.test(full) || /\/chat\/completions\/?$/.test(full)) {
+    return full;
+  }
+  // 归一化尾部斜杠
+  const endsWithSlash = full.endsWith('/');
+  if (providerName === 'deepseek') {
+    return endsWithSlash ? full + 'chat/completions' : full + '/chat/completions';
+  }
+  // OpenAI 兼容
+  if (full.endsWith('/v1')) {
+    return full + '/chat/completions';
+  }
+  if (endsWithSlash) {
+    return full + 'v1/chat/completions';
+  }
+  return full + '/v1/chat/completions';
+}
+
+// 计算基于响应数据的弱 ETag（用于客户端缓存）
+function computeETagFromData(data: any): string {
+  try {
+    const json = JSON.stringify(data);
+    const hash = crypto.createHash('md5').update(json).digest('hex');
+    return `W/"${hash}"`;
+  } catch {
+    // 兜底：使用时间戳，避免抛错
+    return `W/"${Date.now().toString(16)}"`;
+  }
+}
+
+// 为提示词三段文本计算稳定 ETag（仅基于 texts + version + active）
+function computePromptTextsStableETag(data: {
+  version: string | number;
+  active: boolean;
+  texts: { system_prompt?: string; user_intro?: string; user_guidelines?: string };
+}): string {
+  const payload = JSON.stringify({
+    version: String(data.version),
+    active: !!data.active,
+    texts: {
+      system_prompt: data.texts?.system_prompt ?? '',
+      user_intro: data.texts?.user_intro ?? '',
+      user_guidelines: data.texts?.user_guidelines ?? '',
+    },
+  });
+  const hash = crypto.createHash('md5').update(payload).digest('hex');
+  return `W/"${hash}"`;
+}
+
+// 统一设置提示词相关的响应头
+function setPromptTextsCommonHeaders(res: Response, data: { updatedAt: string; version: string | number }, etag: string) {
+  res.setHeader('Cache-Control', 'private, max-age=0, must-revalidate');
+  res.setHeader('ETag', etag);
+  res.setHeader('Last-Modified', new Date(data.updatedAt).toUTCString());
+  res.setHeader('X-Prompt-Version', String(data.version));
+  // 允许前端读取关键头
+  res.setHeader('Access-Control-Expose-Headers', 'ETag, Last-Modified, X-Prompt-Version');
+}
+
+// 使用 Handlebars 渲染模板
+function renderHandlebars(template: string, variables: Record<string, any>): string {
+  const compiled = Handlebars.compile(template, { noEscape: false });
+  return compiled(variables || {});
+}
 
 /**
  * @swagger
@@ -39,8 +128,7 @@ const prisma = new PrismaClient();
  */
 router.get(
   '/public/configs/:platform',
-  authenticateApiKey,
-  requireApiPermission('configs:read'),
+  authPublicAccess('configs:read'),
   asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { platform } = req.params;
     const { category } = req.query;
@@ -83,6 +171,277 @@ router.get(
 );
 
 /**
+ * 提示词三段文本：列表
+ * GET /public/prompt-texts
+ * Query：name, version, active, page, pageSize
+ */
+router.get(
+  '/public/prompt-texts',
+  authPublicAccess('prompts:read'),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    logger.info('[PromptTexts] list request', { query: req.query });
+    const name = (req.query.name as string) || undefined;
+    const version = (req.query.version as string) || undefined;
+    const activeParam = (req.query.active as string) || undefined;
+    const rawPage = (req.query.page as string) || '1';
+    const rawSize = (req.query.pageSize as string) || '20';
+    let page = parseInt(rawPage, 10);
+    let pageSize = parseInt(rawSize, 10);
+    if (!Number.isFinite(page) || isNaN(page) || page <= 0) page = 1;
+    if (!Number.isFinite(pageSize) || isNaN(pageSize) || pageSize <= 0) pageSize = 20;
+    if (pageSize > 200) pageSize = 200;
+
+    const where: any = {};
+    if (name) where.name = name;
+    if (version) where.version = version;
+    if (activeParam !== undefined) {
+      const lowered = String(activeParam).toLowerCase();
+      if (['true', '1', 'yes'].includes(lowered)) where.isActive = true;
+      else if (['false', '0', 'no'].includes(lowered)) where.isActive = false;
+    }
+
+    const skip = (page - 1) * pageSize;
+    const take = pageSize;
+
+    const rows = await prisma.promptText.findMany({
+      where,
+      select: {
+        id: true,
+        name: true,
+        version: true,
+        isActive: true,
+        texts: true,
+        createdAt: true,
+        updatedAt: true,
+        metadata: true,
+      },
+      orderBy: [{ updatedAt: 'desc' }],
+      skip,
+      take,
+    });
+
+    const data = rows.map((t: any) => ({
+      id: t.id,
+      name: t.name,
+      version: String(t.version),
+      active: !!t.isActive,
+      texts: {
+        system_prompt: t.texts?.system_prompt ?? '',
+        user_intro: t.texts?.user_intro ?? '',
+        user_guidelines: t.texts?.user_guidelines ?? '',
+      },
+      createdAt: t.createdAt.toISOString(),
+      lastUsedAt: t?.metadata?.lastUsedAt ? new Date(t.metadata.lastUsedAt).toISOString() : undefined,
+      updatedAt: t.updatedAt.toISOString(),
+    }));
+
+    const response: ApiResponse = {
+      success: true,
+      message: '获取提示词文本列表成功',
+      data,
+    };
+
+    const eTag = computeETagFromData({
+      count: data.length,
+      items: data.map(i => ({
+        id: i.id,
+        version: i.version,
+        createdAt: (i as any).createdAt,
+        lastUsedAt: (i as any).lastUsedAt,
+        updatedAt: i.updatedAt,
+      }))
+    });
+    if (req.headers['if-none-match'] === eTag) {
+      res.status(304).end();
+      return;
+    }
+    res.setHeader('ETag', eTag);
+    res.json(response);
+  })
+);
+
+/**
+ * 提示词三段文本：获取活跃版本
+ * GET /public/prompt-texts/active
+ */
+router.get(
+  '/public/prompt-texts/active',
+  authPublicAccess('prompts:read'),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const platform = (req.query.platform as string) || undefined;
+    const scene = (req.query.scene as string) || undefined;
+    const language = (req.query.lang as string) || undefined;
+    const version = (req.query.version as string) || undefined;
+
+    const where: any = { isActive: true };
+    if (version) where.version = version;
+
+    const t = await prisma.promptText.findFirst({
+      where,
+      orderBy: [{ updatedAt: 'desc' }],
+      select: {
+        id: true,
+        name: true,
+        version: true,
+        isActive: true,
+        texts: true,
+        createdAt: true,
+        updatedAt: true,
+        metadata: true,
+      }
+    });
+
+    if (!t) {
+      res.status(404).json({ success: false, message: '未找到激活的提示词文本', code: 'PROMPT_TEXTS_ACTIVE_NOT_FOUND' });
+      return;
+    }
+
+    // 不再在读取时更新 lastUsedAt，避免造成 updatedAt 改变影响缓存
+
+    const data = {
+      id: t.id,
+      name: t.name,
+      version: String(t.version),
+      active: !!t.isActive,
+      texts: {
+        system_prompt: (t as any).texts?.system_prompt ?? '',
+        user_intro: (t as any).texts?.user_intro ?? '',
+        user_guidelines: (t as any).texts?.user_guidelines ?? '',
+      },
+      createdAt: t.createdAt.toISOString(),
+      lastUsedAt:
+        (t as any)?.metadata?.lastUsedAt
+          ? new Date((t as any).metadata.lastUsedAt).toISOString()
+          : undefined,
+      updatedAt: t.updatedAt.toISOString(),
+    };
+
+    const etag = computePromptTextsStableETag({ version: data.version, active: data.active, texts: data.texts });
+    setPromptTextsCommonHeaders(res, { updatedAt: data.updatedAt, version: data.version }, etag);
+
+    const ifNoneMatch = req.headers['if-none-match'];
+    if (ifNoneMatch && ifNoneMatch === etag) {
+      res.status(304).end();
+      return;
+    }
+
+    const response: ApiResponse = { success: true, message: '获取活跃提示词文本成功', data };
+    res.json(response);
+  })
+);
+
+// HEAD /public/prompt-texts/active —— 返回相同的响应头，用于高效校验
+router.head(
+  '/public/prompt-texts/active',
+  authPublicAccess('prompts:read'),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const where: any = { isActive: true };
+
+    const t = await prisma.promptText.findFirst({
+      where,
+      orderBy: [{ updatedAt: 'desc' }],
+      select: {
+        id: true,
+        name: true,
+        version: true,
+        isActive: true,
+        texts: true,
+        updatedAt: true,
+      }
+    });
+
+    if (!t) {
+      res.sendStatus(404);
+      return;
+    }
+
+    const data = {
+      version: String(t.version),
+      active: !!t.isActive,
+      texts: {
+        system_prompt: (t as any).texts?.system_prompt ?? '',
+        user_intro: (t as any).texts?.user_intro ?? '',
+        user_guidelines: (t as any).texts?.user_guidelines ?? '',
+      },
+      updatedAt: t.updatedAt.toISOString(),
+    };
+
+    const etag = computePromptTextsStableETag({ version: data.version, active: data.active, texts: data.texts });
+    setPromptTextsCommonHeaders(res, { updatedAt: data.updatedAt, version: data.version }, etag);
+
+    const ifNoneMatch = req.headers['if-none-match'];
+    if (ifNoneMatch && ifNoneMatch === etag) {
+      res.sendStatus(304);
+      return;
+    }
+
+    res.sendStatus(200);
+  })
+);
+
+/**
+ * 提示词三段文本：详情
+ * GET /public/prompt-texts/:id
+ */
+router.get(
+  '/public/prompt-texts/:id',
+  authPublicAccess('prompts:read'),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isFinite(id) || isNaN(id)) {
+      res.status(400).json({ success: false, message: 'ID无效', code: 'INVALID_ID' });
+      return;
+    }
+
+    const t = await prisma.promptText.findFirst({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        version: true,
+        isActive: true,
+        texts: true,
+        createdAt: true,
+        updatedAt: true,
+        metadata: true,
+      }
+    });
+
+    if (!t) {
+      res.status(404).json({ success: false, message: '提示词文本不存在', code: 'PROMPT_TEXTS_NOT_FOUND' });
+      return;
+    }
+
+    const data = {
+      id: t.id,
+      name: t.name,
+      version: String(t.version),
+      active: !!t.isActive,
+      texts: {
+        system_prompt: (t as any).texts?.system_prompt ?? '',
+        user_intro: (t as any).texts?.user_intro ?? '',
+        user_guidelines: (t as any).texts?.user_guidelines ?? '',
+      },
+      createdAt: t.createdAt.toISOString(),
+      lastUsedAt:
+        (t as any)?.metadata?.lastUsedAt
+          ? new Date((t as any).metadata.lastUsedAt).toISOString()
+          : undefined,
+      updatedAt: t.updatedAt.toISOString(),
+    };
+
+    const response: ApiResponse = { success: true, message: '获取提示词文本详情成功', data };
+    const eTag = computeETagFromData({ id: data.id, version: data.version, updatedAt: data.updatedAt });
+    if (req.headers['if-none-match'] === eTag) {
+      res.status(304).end();
+      return;
+    }
+    res.setHeader('ETag', eTag);
+    res.json(response);
+  })
+);
+
+/**
  * @swagger
  * /public/ai-models/active:
  *   get:
@@ -100,8 +459,7 @@ router.get(
  */
 router.get(
   '/public/ai-models/active',
-  authenticateApiKey,
-  requireApiPermission('ai_models:read'),
+  authPublicAccess('ai_models:read'),
   asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const activeModels = await prisma.aiModel.findMany({
       where: {
@@ -125,22 +483,10 @@ router.get(
 
     // 过滤返回的字段，包含解密后的API密钥和完整API URL
     const filteredModels = activeModels.map(model => {
-      // 构建完整的API URL - 默认添加兼容OpenAI的格式
-      let fullApiUrl = model.provider.baseUrl;
-      
-      if (model.provider.name === 'deepseek') {
-        // DeepSeek 不需要 /v1
-        fullApiUrl = fullApiUrl.endsWith('/') ? fullApiUrl + 'chat/completions' : fullApiUrl + '/chat/completions';
-      } else {
-        // 其他提供商添加 /v1/chat/completions（兼容OpenAI格式）
-        if (fullApiUrl.endsWith('/')) {
-          fullApiUrl = fullApiUrl + 'v1/chat/completions';
-        } else if (fullApiUrl.endsWith('/v1')) {
-          fullApiUrl = fullApiUrl + '/chat/completions';
-        } else {
-          fullApiUrl = fullApiUrl + '/v1/chat/completions';
-        }
-      }
+      // 优先使用每个模型的 customApiUrl，其次回退到 provider.baseUrl
+      const base = (model as any).customApiUrl || model.provider.baseUrl;
+      // 使用统一函数构建完整的API URL（幂等处理）
+      const fullApiUrl = buildFullApiUrl(model.provider.name, base);
 
       return {
         id: model.id,
@@ -185,8 +531,7 @@ router.get(
  */
 router.get(
   '/public/ai-models/primary',
-  authenticateApiKey,
-  requireApiPermission('ai_models:read'),
+  authPublicAccess('ai_models:read'),
   asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const primaryModel = await prisma.aiModel.findFirst({
       where: {
@@ -213,7 +558,7 @@ router.get(
       return;
     }
 
-    // 过滤返回的字段，包含解密后的API密钥
+    // 过滤返回的字段，包含解密后的API密钥与完整API URL
     const filteredPrimaryModel = {
       id: primaryModel.id,
       name: primaryModel.name,
@@ -223,7 +568,10 @@ router.get(
       role: primaryModel.role,
       priority: primaryModel.priority,
       contextWindow: primaryModel.contextWindow,
-      provider: primaryModel.provider,
+      provider: {
+        ...primaryModel.provider,
+        apiUrl: buildFullApiUrl(primaryModel.provider.name, (primaryModel as any).customApiUrl || primaryModel.provider.baseUrl), // 添加完整的API URL（优先 customApiUrl）
+      },
       apiKeyEncrypted: primaryModel.apiKeyEncrypted, // 包含API密钥字段
     };
 
@@ -231,110 +579,6 @@ router.get(
       success: true,
       message: '获取主要AI模型成功',
       data: filteredPrimaryModel,
-    };
-
-    res.json(response);
-  })
-);
-
-/**
- * @swagger
- * /public/prompts/active:
- *   get:
- *     summary: 获取活跃的提示词模板（公开接口）
- *     tags: [Public API]
- *     security:
- *       - apiKey: []
- *     parameters:
- *       - in: query
- *         name: type
- *         schema:
- *           type: string
- *         description: 模板类型
- *     responses:
- *       200:
- *         description: 获取成功
- */
-router.get(
-  '/public/prompts/active',
-  authenticateApiKey,
-  requireApiPermission('prompts:read'),
-  asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const { type } = req.query;
-
-    const whereClause: any = {
-      isActive: true,
-    };
-
-    if (type) {
-      whereClause.type = type;
-    }
-
-    const prompts = await prisma.promptTemplate.findMany({
-      where: whereClause,
-      select: {
-        id: true,
-        name: true,
-        type: true,
-        systemPrompt: true,
-        userPromptTemplate: true,
-        formatInstructions: true,
-        version: true,
-        updatedAt: true,
-      },
-      orderBy: [
-        { type: 'asc' },
-        { name: 'asc' }
-      ]
-    });
-
-    const response: ApiResponse = {
-      success: true,
-      message: '获取活跃提示词模板成功',
-      data: prompts,
-    };
-
-    res.json(response);
-  })
-);
-
-/**
- * @swagger
- * /public/ai-models/providers:
- *   get:
- *     summary: 获取活跃的AI提供商列表（公开接口）
- *     tags: [Public API]
- *     security:
- *       - apiKey: []
- *     responses:
- *       200:
- *         description: 获取成功
- */
-router.get(
-  '/public/ai-models/providers',
-  authenticateApiKey,
-  requireApiPermission('ai_models:read'),
-  asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const providers = await prisma.aiProvider.findMany({
-      where: {
-        isActive: true,
-      },
-      select: {
-        id: true,
-        name: true,
-        displayName: true,
-        baseUrl: true,
-        supportedModels: true,
-      },
-      orderBy: {
-        displayName: 'asc'
-      }
-    });
-
-    const response: ApiResponse = {
-      success: true,
-      message: '获取AI提供商列表成功',
-      data: providers,
     };
 
     res.json(response);
@@ -363,8 +607,7 @@ router.get(
  */
 router.get(
   '/public/ai-models/by-type/:type',
-  authenticateApiKey,
-  requireApiPermission('ai_models:read'),
+  authPublicAccess('ai_models:read'),
   asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { type } = req.params;
 
@@ -388,7 +631,7 @@ router.get(
       ]
     });
 
-    // 过滤返回的字段，包含解密后的API密钥
+    // 过滤返回的字段，包含解密后的API密钥与完整API URL
     const filteredModels = models.map(model => ({
       id: model.id,
       name: model.name,
@@ -398,7 +641,10 @@ router.get(
       role: model.role,
       priority: model.priority,
       contextWindow: model.contextWindow,
-      provider: model.provider,
+      provider: {
+        ...model.provider,
+        apiUrl: buildFullApiUrl(model.provider.name, (model as any).customApiUrl || model.provider.baseUrl),
+      },
       apiKeyEncrypted: model.apiKeyEncrypted, // 包含API密钥字段
     }));
 
@@ -435,29 +681,38 @@ router.get(
  */
 router.get(
   '/public/prompts/by-name/:name',
-  authenticateApiKey,
-  requireApiPermission('prompts:read'),
+  authPublicAccess('prompts:read'),
   asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { name } = req.params;
 
-    const template = await prisma.promptTemplate.findFirst({
-      where: {
-        name,
-        status: 'active',
-      },
+    const platform = (req.query.platform as string) || undefined;
+    const scene = (req.query.scene as string) || undefined;
+    const language = (req.query.lang as string) || undefined;
+    const version = (req.query.version as string) || undefined;
+
+    const where: any = { name, isActive: true };
+    if (platform) where.platform = platform;
+    if (scene) where.scene = scene;
+    if (language) where.language = language;
+    if (version) where.version = version;
+
+    const t = await prisma.publicPrompt.findFirst({
+      where,
       select: {
         id: true,
         name: true,
-        type: true,
-        systemPrompt: true,
-        userPromptTemplate: true,
-        formatInstructions: true,
         version: true,
+        platform: true,
+        scene: true,
+        language: true,
+        isActive: true,
+        messages: true,
+        variables: true,
         updatedAt: true,
       }
     });
 
-    if (!template) {
+    if (!t) {
       res.status(404).json({
         success: false,
         message: '提示词模板不存在',
@@ -466,12 +721,37 @@ router.get(
       return;
     }
 
+    const vars2 = (t as any)?.variables && typeof (t as any).variables === 'object' ? (t as any).variables : {};
+    const data = {
+      id: t.id,
+      name: t.name,
+      version: String(t.version),
+      platform: (t as any).platform,
+      scene: (t as any).scene,
+      language: (t as any).language,
+      active: !!(t as any).isActive,
+      messages: Array.isArray((t as any).messages) ? (t as any).messages : [],
+      variables: {
+        required: Array.isArray(vars2.required) ? vars2.required : [],
+        optional: Array.isArray(vars2.optional) ? vars2.optional : [],
+        defaults: vars2.defaults || {},
+      },
+      updatedAt: t.updatedAt.toISOString(),
+    };
+
     const response: ApiResponse = {
       success: true,
       message: '获取提示词模板成功',
-      data: template,
+      data,
     };
 
+    // ETag 缓存支持
+    const eTag = computeETagFromData({ id: data.id, version: data.version, updatedAt: data.updatedAt });
+    if (req.headers['if-none-match'] === eTag) {
+      res.status(304).end();
+      return;
+    }
+    res.setHeader('ETag', eTag);
     res.json(response);
   })
 );
@@ -490,8 +770,7 @@ router.get(
  */
 router.get(
   '/public/hexagrams/all',
-  authenticateApiKey,
-  requireApiPermission('hexagrams:read'),
+  authPublicAccess('hexagrams:read'),
   asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const hexagrams = await prisma.hexagramData.findMany({
       where: {
@@ -548,8 +827,7 @@ router.get(
  */
 router.get(
   '/public/hexagrams/:id',
-  authenticateApiKey,
-  requireApiPermission('hexagrams:read'),
+  authPublicAccess('hexagrams:read'),
   asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const id = parseInt(req.params.id);
 

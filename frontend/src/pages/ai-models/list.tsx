@@ -127,7 +127,7 @@ export const AIModelList: React.FC = () => {
       render: (value: string) => <strong>{value}</strong>,
     },
     {
-      title: "提供商",
+      title: "服务商",
       dataIndex: ["provider", "displayName"],
       key: "provider",
       width: 120,

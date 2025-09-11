@@ -13,11 +13,9 @@ import { validate } from '@/middleware/validation.middleware';
 import { auditLog, batchAuditLog } from '@/middleware/audit.middleware';
 import { paginationValidation, commonValidations } from '@/middleware/validation.middleware';
 import { asyncHandler } from '@/middleware/async.middleware';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { ApiResponse } from '@/types/api.types';
 import Joi from 'joi';
-
-const prisma = new PrismaClient();
 
 const router = Router();
 

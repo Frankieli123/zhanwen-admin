@@ -11,6 +11,9 @@ import {
   getAIProviders,
   getActiveAIProviders,
   getAIProviderById,
+  createAIProvider,
+  updateAIProvider,
+  deleteAIProvider,
   getActiveAIConfiguration,
   getPrimaryAIModel,
   fetchModels,
@@ -125,7 +128,7 @@ router.get(
   getAIModelStats
 );
 
-// AI提供商路由
+// AI服务商路由
 router.get(
   '/ai-providers',
   requirePermission('ai_models:read'),
@@ -150,6 +153,53 @@ router.get(
   getAIProviderById
 );
 
+router.post(
+  '/ai-providers',
+  requirePermission('ai_models:create'),
+  validate({
+    body: Joi.object({
+      name: Joi.string().required(),
+      displayName: Joi.string().required(),
+      baseUrl: Joi.string().uri().required(),
+      authType: Joi.string().optional(),
+      isActive: Joi.boolean().optional(),
+      apiKeyEncrypted: Joi.string().optional(),
+    }),
+  }),
+  createAIProvider
+);
+
+router.put(
+  '/ai-providers/:id',
+  requirePermission('ai_models:update'),
+  validate({
+    params: Joi.object({
+      id: commonValidations.id,
+    }),
+    body: Joi.object({
+      displayName: Joi.string().optional(),
+      baseUrl: Joi.string().uri().optional(),
+      authType: Joi.string().optional(),
+      isActive: Joi.boolean().optional(),
+      supportedModels: Joi.array().items(Joi.string()).optional(),
+      metadata: Joi.object().optional(),
+      apiKeyEncrypted: Joi.string().allow('').optional(),
+    }),
+  }),
+  updateAIProvider
+);
+
+router.delete(
+  '/ai-providers/:id',
+  requirePermission('ai_models:delete'),
+  validate({
+    params: Joi.object({
+      id: commonValidations.id,
+    }),
+  }),
+  deleteAIProvider
+);
+
 // 拉取模型列表
 router.post(
   '/ai-models/fetch-models',
@@ -157,7 +207,7 @@ router.post(
   validate({
     body: Joi.object({
       provider: Joi.string().required(),
-      apiKey: Joi.string().required(),
+      apiKey: Joi.string().optional(),
       apiUrl: Joi.string().uri().optional(),
     }),
   }),
@@ -171,7 +221,7 @@ router.post(
   validate({
     body: Joi.object({
       provider: Joi.string().required(),
-      apiKey: Joi.string().required(),
+      apiKey: Joi.string().optional(),
       apiUrl: Joi.string().uri().optional(),
     }),
   }),

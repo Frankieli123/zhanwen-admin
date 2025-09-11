@@ -114,7 +114,7 @@ export const Analytics: React.FC = () => {
       key: 'displayName',
     },
     {
-      title: '提供商',
+      title: '服务商',
       dataIndex: 'provider',
       key: 'provider',
     },

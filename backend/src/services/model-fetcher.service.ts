@@ -35,11 +35,14 @@ export class ModelFetcherService {
           return await this.fetchDeepSeekModels(apiKey, apiUrl);
         case 'anthropic':
           return await this.fetchAnthropicModels(apiKey, apiUrl);
+        case 'ai-wave':
+          // AI-WAVE 为 OpenAI 兼容接口
+          return await this.fetchOpenAIModels(apiKey, apiUrl);
         case 'custom':
-          // 自定义提供商使用OpenAI兼容的API
+          // 自定义服务商使用OpenAI兼容的API
           return await this.fetchOpenAIModels(apiKey, apiUrl);
         default:
-          // 未知提供商也尝试使用OpenAI兼容的API
+          // 未知服务商也尝试使用OpenAI兼容的API
           return await this.fetchOpenAIModels(apiKey, apiUrl);
       }
     } catch (error) {
@@ -52,7 +55,7 @@ export class ModelFetcherService {
   }
 
   /**
-   * 拉取OpenAI模型列表
+   * 拉取Open模型列表
    */
   private static async fetchOpenAIModels(apiKey: string, customApiUrl?: string): Promise<ModelInfo[]> {
     let baseUrl = customApiUrl || 'https://api.openai.com/v1';

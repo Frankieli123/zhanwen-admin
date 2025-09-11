@@ -1,9 +1,7 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { createError } from '@/middleware/error.middleware';
 import { logger } from '@/utils/logger';
-
-const prisma = new PrismaClient();
 
 // 获取分析概览
 export const getAnalyticsOverview = async (req: Request, res: Response) => {

@@ -19,6 +19,15 @@ if (missingVars.length > 0) {
   process.exit(1);
 }
 
+// 进一步校验 ENCRYPTION_KEY 强度（至少32位，且包含字母与数字）
+const encryptionKey = process.env['ENCRYPTION_KEY'] as string;
+const hasLetter = /[a-zA-Z]/.test(encryptionKey);
+const hasNumber = /[0-9]/.test(encryptionKey);
+if (encryptionKey.length < 32 || !hasLetter || !hasNumber) {
+  console.error('❌ ENCRYPTION_KEY 强度不足：至少32位且需包含字母与数字');
+  process.exit(1);
+}
+
 console.log('✅ 环境变量验证通过');
 console.log('🔐 加密密钥长度:', process.env.ENCRYPTION_KEY?.length);
 console.log('🌍 当前环境:', process.env.NODE_ENV || 'development');
