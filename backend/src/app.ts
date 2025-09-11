@@ -246,7 +246,7 @@ app.use('/', publicRoutes);     // 公开API路由（使用API Key认证）- 必
 app.use('/api', apiRoutes);     // 管理API路由（使用JWT认证）
 
 // 静态文件服务 - 服务前端构建文件
-const frontendDistPath = path.join(__dirname, '../../frontend/dist');
+const frontendDistPath = path.join(__dirname, '../../zhanwen-admin-vue/dist');
 app.use(express.static(frontendDistPath));
 
 // SPA 路由回退 - 所有非 API 路由都返回 index.html

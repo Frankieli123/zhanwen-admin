@@ -23,14 +23,14 @@ nixPkgs = ["nodejs-18_x", "npm-9_x"]
 cmds = [
   "npm install",
   "cd backend && npm ci --only=production",
-  "cd frontend && npm ci"
+  "cd zhanwen-admin-vue && npm ci"
 ]
 
 [phases.build]
 cmds = [
-  "cd frontend && npm run build",
+  "cd zhanwen-admin-vue && npm run build",
   "cd backend && npm run build"
 ]
 
 [start]
-cmd = "chmod +x start.sh && ./start.sh"
+cmd = "node backend/dist/index.js"
