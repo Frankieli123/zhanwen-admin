@@ -23,12 +23,12 @@ nixPkgs = ["nodejs-18_x", "npm-9_x"]
 cmds = [
   "npm install",
   "cd backend && npm ci --only=production",
-  "cd zhanwen-admin-vue && npm ci"
+  "npm install --prefix zhanwen-admin-vue --include=dev"
 ]
 
 [phases.build]
 cmds = [
-  "cd zhanwen-admin-vue && npm run build",
+  "npm run build --prefix zhanwen-admin-vue",
   "cd backend && npm run build"
 ]
 
