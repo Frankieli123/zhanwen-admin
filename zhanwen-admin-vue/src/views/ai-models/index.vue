@@ -3,7 +3,7 @@
     <!-- 搜索区域 -->
     <ArtSearchBar
       ref="searchBarRef"
-      v-model="searchFormState"
+      v-model="searchFormModel"
       :items="searchItems"
       :rules="rules"
       :is-expand="false"
@@ -647,6 +647,12 @@
       }
     }
   ])
+
+  // v-model 包装器：避免将 const reactive 作为整体被赋值
+  const searchFormModel = computed<Record<string, any>>({
+    get: () => searchFormState,
+    set: (v) => Object.assign(searchFormState, v || {})
+  })
 
   const rules = {}
 

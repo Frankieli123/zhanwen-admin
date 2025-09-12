@@ -2,7 +2,7 @@
   <div class="art-page-view">
     <!-- 搜索区域（与模型列表一致，使用 ArtSearchBar） -->
     <ArtSearchBar
-      v-model="searchFormState"
+      v-model="searchFormModel"
       :items="searchItems"
       :rules="searchRules"
       :is-expand="false"
@@ -219,9 +219,14 @@
   // 搜索（ArtSearchBar）
   const searchFormState = reactive<Record<string, any>>({
     name: '',
-    
     active: undefined as boolean | undefined,
     version: ''
+  })
+
+  // v-model 包装器，避免对 const reactive 对象整体赋值
+  const searchFormModel = computed<Record<string, any>>({
+    get: () => searchFormState,
+    set: (v) => Object.assign(searchFormState, v || {})
   })
   const searchItems = computed(() => [
     {

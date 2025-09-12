@@ -67,6 +67,7 @@ export default ({ mode }: { mode: string }) => {
     plugins: [
       VueMacros({
         defineOptions: true,
+        betterDefine: false,
         plugins: {
           vue: vue()
         }

@@ -2,7 +2,7 @@
   <div class="art-page-view">
     <!-- 搜索区域 -->
     <ArtSearchBar
-      v-model="searchFormState"
+      v-model="searchFormModel"
       :items="searchItems"
       :is-expand="false"
       :show-expand="true"
@@ -237,6 +237,12 @@
       useSlot: true
     }
   ])
+
+  // v-model 的包装器，避免对 const reactive 对象整体赋值
+  const searchFormModel = computed<Record<string, any>>({
+    get: () => searchFormState,
+    set: (v) => Object.assign(searchFormState, v || {})
+  })
   // 列显隐/排序配置（与模型列表页保持一致）
   const columnChecks = ref<ColumnOption[]>(columns.value.map((c) => ({ ...c, checked: true })))
   // 按列设置面板的顺序与勾选状态，生成实际渲染列
