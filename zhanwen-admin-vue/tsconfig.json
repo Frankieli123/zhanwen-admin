@@ -16,6 +16,7 @@
       "@/*": ["src/*"],
       "@views/*": ["src/views/*"],
       "@assets/*": ["src/assets/*"],
+      "@imgs/*": ["src/assets/img/*"],
       "@icons/*": ["src/assets/icons/*"],
       "@styles/*": ["src/assets/styles/*"],
       "@utils/*": ["src/utils/*"],
