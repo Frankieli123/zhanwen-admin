@@ -21,14 +21,14 @@ nixPkgs = ["nodejs-18_x", "npm-9_x"]
 
 [phases.install]
 cmds = [
-  "npm install",
+  "npm ci || npm install",
   "cd backend && npm ci --only=production",
-  "npm install --prefix zhanwen-admin-vue --include=dev"
+  "if [ -f zhanwen-admin-vue/package.json ]; then npm install --prefix zhanwen-admin-vue --include=dev; else echo \"[nixpacks] zhanwen-admin-vue not found, skip frontend install\"; fi"
 ]
 
 [phases.build]
 cmds = [
-  "npm run build --prefix zhanwen-admin-vue",
+  "if [ -f zhanwen-admin-vue/package.json ]; then npm run build --prefix zhanwen-admin-vue; else echo \"[nixpacks] zhanwen-admin-vue not found, skip frontend build\"; fi",
   "cd backend && npm run build"
 ]
 
