@@ -22,13 +22,14 @@ nixPkgs = ["nodejs-18_x", "npm-9_x"]
 [phases.install]
 cmds = [
   "npm ci || npm install",
-  "cd backend && npm ci --only=production",
-  "if [ -f zhanwen-admin-vue/package.json ]; then npm install --prefix zhanwen-admin-vue --include=dev; else echo \"[nixpacks] zhanwen-admin-vue not found, skip frontend install\"; fi"
+  "cd backend && (npm ci || npm install)",
+  "test -f zhanwen-admin-vue/package.json || (echo \"[nixpacks] ERROR: zhanwen-admin-vue/package.json not found. Set Coolify Build context to repository root including zhanwen-admin-vue/ and backend/\"; exit 1)",
+  "npm install --prefix zhanwen-admin-vue --include=dev"
 ]
 
 [phases.build]
 cmds = [
-  "if [ -f zhanwen-admin-vue/package.json ]; then npm run build --prefix zhanwen-admin-vue; else echo \"[nixpacks] zhanwen-admin-vue not found, skip frontend build\"; fi",
+  "npm run build --prefix zhanwen-admin-vue",
   "cd backend && npm run build"
 ]
 
