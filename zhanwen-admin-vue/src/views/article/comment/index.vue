@@ -68,7 +68,7 @@
 </template>
 
 <script setup lang="ts">
-  import { commentList } from '@/mock/temp/commentList'
+  import { commentList } from '@/mock/temp/commentList.ts'
   const showDrawer = ref(false)
 
   defineOptions({ name: 'ArticleComment' })

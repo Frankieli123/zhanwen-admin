@@ -401,7 +401,7 @@
   import { Plus, Delete, Edit, Search, Refresh, QuestionFilled } from '@element-plus/icons-vue'
   import { useTable, CacheInvalidationStrategy } from '@/composables/useTable'
   import { UserService } from '@/api/usersApi'
-  import { ACCOUNT_TABLE_DATA } from '@/mock/temp/formData'
+  import { ACCOUNT_TABLE_DATA } from '@/mock/temp/formData.ts'
   import { getColumnKey } from '@/composables/useTableColumns'
 
   defineOptions({ name: 'AdvancedTableDemo' })

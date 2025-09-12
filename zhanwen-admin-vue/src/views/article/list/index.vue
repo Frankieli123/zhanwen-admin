@@ -97,7 +97,7 @@
   import { useDateFormat } from '@vueuse/core'
   import { Search } from '@element-plus/icons-vue'
   import EmojiText from '@/utils/ui/emojo'
-  import { ArticleList } from '@/mock/temp/articleList'
+  import { ArticleList } from '@/mock/temp/articleList.ts'
   import { useCommon } from '@/composables/useCommon'
   import { RoutesAlias } from '@/router/routesAlias'
 

@@ -40,7 +40,7 @@
 
 <script setup lang="ts">
   import ArtButtonTable from '@/components/core/forms/art-button-table/index.vue'
-  import { ACCOUNT_TABLE_DATA } from '@/mock/temp/formData'
+  import { ACCOUNT_TABLE_DATA } from '@/mock/temp/formData.ts'
   import { ElMessageBox, ElMessage, ElTag, ElImage } from 'element-plus'
   import { useTable } from '@/composables/useTable'
   import { UserService } from '@/api/usersApi'

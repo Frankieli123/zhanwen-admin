@@ -124,7 +124,7 @@
   import { ElMessage, ElMessageBox } from 'element-plus'
   import type { FormInstance, FormRules } from 'element-plus'
   import { formatMenuTitle } from '@/router/utils/utils'
-  import { Role, ROLE_LIST_DATA } from '@/mock/temp/formData'
+  import { Role, ROLE_LIST_DATA } from '@/mock/temp/formData.ts'
   import { ButtonMoreItem } from '@/components/core/forms/art-button-more/index.vue'
 
   defineOptions({ name: 'Role' })

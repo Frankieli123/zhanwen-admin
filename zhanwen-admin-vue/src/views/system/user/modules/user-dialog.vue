@@ -39,7 +39,7 @@
 </template>
 
 <script setup lang="ts">
-  import { ROLE_LIST_DATA } from '@/mock/temp/formData'
+  import { ROLE_LIST_DATA } from '@/mock/temp/formData.ts'
   import type { FormInstance, FormRules } from 'element-plus'
   import { ElMessage } from 'element-plus'
 
