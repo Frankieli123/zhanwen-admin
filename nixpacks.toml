@@ -24,7 +24,7 @@ cmds = [
   "npm ci || npm install",
   "cd backend && (npm ci || npm install)",
   "test -f zhanwen-admin-vue/package.json || (echo \"[nixpacks] ERROR: zhanwen-admin-vue/package.json not found. Set Coolify Build context to repository root including zhanwen-admin-vue/ and backend/\"; exit 1)",
-  "npm install --prefix zhanwen-admin-vue --include=dev"
+  "npm ci --prefix zhanwen-admin-vue --include=dev || npm install --prefix zhanwen-admin-vue --include=dev --legacy-peer-deps"
 ]
 
 [phases.build]
