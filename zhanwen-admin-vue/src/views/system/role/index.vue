@@ -124,10 +124,18 @@
   import { ElMessage, ElMessageBox } from 'element-plus'
   import type { FormInstance, FormRules } from 'element-plus'
   import { formatMenuTitle } from '@/router/utils/utils'
-  import { Role, ROLE_LIST_DATA } from '@/mock/temp/formData.ts'
   import { ButtonMoreItem } from '@/components/core/forms/art-button-more/index.vue'
 
   defineOptions({ name: 'Role' })
+
+  // 本地定义 Role 类型，避免生产构建解析 mock 模块
+  interface Role {
+    roleName: string
+    roleCode: string
+    des: string
+    date: string
+    enable: boolean
+  }
 
   const dialogVisible = ref(false)
   const permissionDialog = ref(false)
@@ -190,8 +198,13 @@
     getTableData()
   })
 
-  const getTableData = () => {
-    roleList.value = ROLE_LIST_DATA
+  const getTableData = async () => {
+    if (import.meta.env.DEV) {
+      const mod = await import('@/mock/temp/formData.ts')
+      roleList.value = mod.ROLE_LIST_DATA
+    } else {
+      roleList.value = []
+    }
   }
 
   const dialogType = ref('add')

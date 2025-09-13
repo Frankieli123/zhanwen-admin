@@ -40,7 +40,6 @@
 
 <script setup lang="ts">
   import ArtButtonTable from '@/components/core/forms/art-button-table/index.vue'
-  import { ACCOUNT_TABLE_DATA } from '@/mock/temp/formData.ts'
   import { ElMessageBox, ElMessage, ElTag, ElImage } from 'element-plus'
   import { useTable } from '@/composables/useTable'
   import { UserService } from '@/api/usersApi'
@@ -51,6 +50,17 @@
 
   type UserListItem = Api.User.UserListItem
   const { getUserList } = UserService
+
+  // 开发环境加载本地头像列表，生产环境不依赖 mock 文件
+  const avatarList = ref<string[]>([])
+  onMounted(async () => {
+    if (import.meta.env.DEV) {
+      const mod = await import('@/mock/temp/formData.ts')
+      avatarList.value = (mod.ACCOUNT_TABLE_DATA || []).map((u: any) => u.avatar)
+    } else {
+      avatarList.value = []
+    }
+  })
 
   // 弹窗相关
   const dialogType = ref<Form.DialogType>('add')
@@ -189,7 +199,10 @@
         return records.map((item: any, index: number) => {
           return {
             ...item,
-            avatar: ACCOUNT_TABLE_DATA[index % ACCOUNT_TABLE_DATA.length].avatar
+            avatar:
+              avatarList.value.length > 0
+                ? avatarList.value[index % avatarList.value.length]
+                : item.avatar
           }
         })
       }

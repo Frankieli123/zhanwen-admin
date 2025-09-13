@@ -39,7 +39,6 @@
 </template>
 
 <script setup lang="ts">
-  import { ROLE_LIST_DATA } from '@/mock/temp/formData.ts'
   import type { FormInstance, FormRules } from 'element-plus'
   import { ElMessage } from 'element-plus'
 
@@ -57,8 +56,24 @@
   const props = defineProps<Props>()
   const emit = defineEmits<Emits>()
 
-  // 角色列表数据
-  const roleList = ref(ROLE_LIST_DATA)
+  // 角色列表数据（开发环境动态导入 mock，生产环境不依赖 mock 文件）
+  interface Role {
+    roleName: string
+    roleCode: string
+    des: string
+    date: string
+    enable: boolean
+  }
+  const roleList = ref<Role[]>([])
+
+  onMounted(async () => {
+    if (import.meta.env.DEV) {
+      const mod = await import('@/mock/temp/formData.ts')
+      roleList.value = mod.ROLE_LIST_DATA
+    } else {
+      roleList.value = []
+    }
+  })
 
   // 对话框显示控制
   const dialogVisible = computed({

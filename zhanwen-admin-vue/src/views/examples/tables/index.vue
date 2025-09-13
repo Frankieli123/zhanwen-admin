@@ -396,15 +396,23 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, watch, nextTick } from 'vue'
+  import { ref, computed, watch, nextTick, onMounted } from 'vue'
   import { ElMessage, ElMessageBox } from 'element-plus'
   import { Plus, Delete, Edit, Search, Refresh, QuestionFilled } from '@element-plus/icons-vue'
   import { useTable, CacheInvalidationStrategy } from '@/composables/useTable'
   import { UserService } from '@/api/usersApi'
-  import { ACCOUNT_TABLE_DATA } from '@/mock/temp/formData.ts'
   import { getColumnKey } from '@/composables/useTableColumns'
 
   defineOptions({ name: 'AdvancedTableDemo' })
+
+  // 开发环境使用 mock 头像列表，生产环境不依赖 mock
+  const avatarList = ref<string[]>([])
+  onMounted(async () => {
+    if (import.meta.env.DEV) {
+      const mod = await import('@/mock/temp/formData.ts')
+      avatarList.value = (mod.ACCOUNT_TABLE_DATA || []).map((u: any) => u.avatar)
+    }
+  })
 
   type UserListItem = Api.User.UserListItem
 
@@ -745,7 +753,10 @@
 
         return records.map((item: any, index: number) => ({
           ...item,
-          avatar: ACCOUNT_TABLE_DATA[index % ACCOUNT_TABLE_DATA.length].avatar,
+          avatar:
+            avatarList.value.length > 0
+              ? avatarList.value[index % avatarList.value.length]
+              : item.avatar,
           department: ['技术部', '产品部', '运营部', '市场部', '设计部'][
             Math.floor(Math.random() * 5)
           ],
