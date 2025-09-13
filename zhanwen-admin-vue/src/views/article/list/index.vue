@@ -97,7 +97,6 @@
   import { useDateFormat } from '@vueuse/core'
   import { Search } from '@element-plus/icons-vue'
   import EmojiText from '@/utils/ui/emojo'
-  import { ArticleList } from '@/mock/temp/articleList.ts'
   import { useCommon } from '@/composables/useCommon'
   import { RoutesAlias } from '@/router/routesAlias'
 
@@ -152,7 +151,14 @@
     //   year
     // }
 
-    articleList.value = ArticleList
+    // 开发环境下使用本地 mock，生产环境不依赖 mock 文件
+    if (import.meta.env.DEV) {
+      const mod = await import('@/mock/temp/articleList.ts')
+      articleList.value = mod.ArticleList
+    } else {
+      // 生产环境：可对接后端 API；暂时展示空列表
+      articleList.value = []
+    }
     isLoading.value = false
 
     if (backTop) {
