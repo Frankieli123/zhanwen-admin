@@ -79,7 +79,8 @@ export default ({ mode }: { mode: string }) => {
       }),
       // 预编译本地化资源，避免在严格 CSP（禁用 unsafe-eval）环境下运行时报错
       VueI18nPlugin({
-        include: resolvePath('src/locales/**')
+        // 仅预编译 JSON 语言包，避免处理 index.ts
+        include: resolvePath('src/locales/langs/**')
       }),
       Components({
         deep: true,
