@@ -68,10 +68,21 @@
 </template>
 
 <script setup lang="ts">
-  import { commentList } from '@/mock/temp/commentList.ts'
   const showDrawer = ref(false)
 
   defineOptions({ name: 'ArticleComment' })
+
+  // 开发环境使用本地 mock，生产环境不依赖 mock 文件
+  const commentList = ref<any[]>([])
+
+  onMounted(async () => {
+    if (import.meta.env.DEV) {
+      const mod = await import('@/mock/temp/commentList.ts')
+      commentList.value = mod.commentList
+    } else {
+      commentList.value = []
+    }
+  })
 
   // const colorList = reactive([
   //   'rgba(216, 248, 255, 0.8)',

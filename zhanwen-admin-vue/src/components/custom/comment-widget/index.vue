@@ -24,10 +24,27 @@
 </template>
 
 <script setup lang="ts">
-  import { ref } from 'vue'
+  import { ref, onMounted } from 'vue'
   import CommentItem from './widget/CommentItem.vue'
-  import { commentList, Comment } from '@/mock/temp/commentDetail.ts'
-  const comments = commentList
+  // 开发环境下动态引入 mock，生产环境不依赖 mock 文件
+  interface Comment {
+    id: number
+    author: string
+    content: string
+    timestamp: string
+    replies: Comment[]
+  }
+  const comments = ref<Comment[]>([])
+
+  onMounted(async () => {
+    if (import.meta.env.DEV) {
+      const mod = await import('@/mock/temp/commentDetail.ts')
+      // commentDetail.ts 中导出的是 ref<Comment[]>
+      comments.value = mod.commentList.value
+    } else {
+      comments.value = []
+    }
+  })
 
   const newComment = ref<Partial<Comment>>({
     author: '',
