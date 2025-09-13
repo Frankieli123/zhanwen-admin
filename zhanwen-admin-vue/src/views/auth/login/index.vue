@@ -151,22 +151,23 @@
     {
       key: 'super',
       label: t('login.roles.super'),
-      userName: 'Super',
-      password: '123456',
+      // 与后端种子数据保持一致
+      userName: 'admin',
+      password: 'admin123456',
       roles: ['R_SUPER']
     },
     {
       key: 'admin',
       label: t('login.roles.admin'),
-      userName: 'Admin',
-      password: '123456',
+      userName: 'admin',
+      password: 'admin123456',
       roles: ['R_ADMIN']
     },
     {
       key: 'user',
       label: t('login.roles.user'),
-      userName: 'User',
-      password: '123456',
+      userName: 'admin',
+      password: 'admin123456',
       roles: ['R_USER']
     }
   ])
@@ -199,7 +200,8 @@
   const loading = ref(false)
 
   onMounted(() => {
-    setupAccount('super')
+    // 默认选择与后端种子一致的管理员账号
+    setupAccount('admin')
   })
 
   // 设置账号

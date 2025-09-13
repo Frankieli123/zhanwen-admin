@@ -13,13 +13,16 @@ export class UserService {
     else if ((params as any).email) payload.email = (params as any).email
 
     console.log('🔐 发起登录请求:', {
-      url: '/api/auth/login',
+      url: '/auth/login',
       payload,
       timestamp: new Date().toISOString()
     })
 
     return request.post<Api.Auth.LoginResponse>({
-      url: '/api/auth/login',
+      // 注意：后端 auth 路由挂载在根路径 '/auth'，不在 '/api' 下
+      // 显式使用空 baseURL，避免全局 baseURL='/api' 时拼接为 '/api/auth/login'
+      baseURL: '',
+      url: '/auth/login',
       data: payload
       // showErrorMessage: false // 不显示错误消息
     })
@@ -28,7 +31,8 @@ export class UserService {
   // 获取用户信息
   static getUserInfo() {
     return request.get<Api.User.UserInfo>({
-      url: '/api/auth/me'
+      baseURL: '',
+      url: '/auth/me'
     })
   }
 
