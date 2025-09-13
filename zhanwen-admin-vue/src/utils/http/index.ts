@@ -119,6 +119,24 @@ axiosInstance.interceptors.request.use(
       request.headers.set('Authorization', tokenVal)
     }
 
+    // 统一修正 baseURL 与 url，避免 '/api/api/*'，以及使 '/public/*'、'/auth/*' 走根路径
+    try {
+      const rawBase = (request.baseURL || '').replace(/\/+$/, '')
+      let rawUrl = request.url || ''
+      // 若 base 以 /api 结尾且 url 以 /api 开头，去重一次
+      if (rawBase.endsWith('/api') && /^\/api(\/|$)/.test(rawUrl)) {
+        rawUrl = rawUrl.replace(/^\/api/, '')
+      }
+      // 对于根路由，强制使用根 baseURL，避免被 '/api' 前缀污染
+      if (/^\/(auth|public|health|api-docs)(\/|$)/.test(rawUrl)) {
+        request.baseURL = ''
+      }
+      if (rawUrl && !rawUrl.startsWith('/')) rawUrl = '/' + rawUrl
+      request.url = rawUrl
+    } catch {
+      // ignore url normalize error
+    }
+
     // 自动附带公开接口所需的 X-API-Key（供 /public/** 路由使用）
     try {
       const fromLocal =
