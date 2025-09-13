@@ -6,6 +6,7 @@ import Components from 'unplugin-vue-components/vite'
 import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 import { fileURLToPath } from 'url'
 import VueMacros from 'unplugin-vue-macros/vite'
+import VueI18nPlugin from '@intlify/unplugin-vue-i18n/vite'
 
 // 兼容 ESM：定义 __dirname
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -23,7 +24,11 @@ export default ({ mode }: { mode: string }) => {
 
   return defineConfig({
     define: {
-      __APP_VERSION__: JSON.stringify(VITE_VERSION)
+      __APP_VERSION__: JSON.stringify(VITE_VERSION),
+      // vue-i18n 构建常量，避免运行时编译依赖（可选增强）
+      __VUE_I18N_FULL_INSTALL__: true,
+      __VUE_I18N_LEGACY_API__: false,
+      __INTLIFY_PROD_DEVTOOLS__: false
     },
     base: VITE_BASE_URL,
     server: {
@@ -71,6 +76,10 @@ export default ({ mode }: { mode: string }) => {
         plugins: {
           vue: vue()
         }
+      }),
+      // 预编译本地化资源，避免在严格 CSP（禁用 unsafe-eval）环境下运行时报错
+      VueI18nPlugin({
+        include: resolvePath('src/locales/**')
       }),
       Components({
         deep: true,

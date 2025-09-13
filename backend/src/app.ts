@@ -94,7 +94,12 @@ const swaggerOptions = {
 const swaggerSpec = swaggerJsdoc(swaggerOptions);
 
 // 基础中间件
-app.use(helmet());
+// 说明：生产环境出现 'unsafe-eval' CSP 报错导致白屏，
+// 这里临时放宽 Helmet 的 CSP（禁用 contentSecurityPolicy），
+// 后续可根据需要精细化 directives（例如仅为前端脚本开启 'unsafe-eval'）。
+app.use(helmet({
+  contentSecurityPolicy: false
+}));
 app.use(compression());
 app.use(cors({
   origin: process.env['CORS_ORIGIN'] || 'http://localhost:3000',
