@@ -62,6 +62,15 @@ if not exist "zhanwen-admin-vue" (
     exit /b 1
 )
 
+:: Detect package manager for frontend
+where pnpm >nul 2>&1
+if %errorlevel%==0 (
+    set "FRONTEND_PKG_MGR=pnpm"
+) else (
+    set "FRONTEND_PKG_MGR=npm"
+)
+echo Using %FRONTEND_PKG_MGR% for frontend package management.
+
 :: Start backend service
 echo Starting backend service on port %BACKEND_PORT%...
 cd backend
@@ -84,7 +93,35 @@ if %errorlevel%==0 (
 :: Start Vue frontend service
 echo Starting Vue frontend service on port %FRONTEND_PORT%...
 cd zhanwen-admin-vue
-start "Vue Frontend Service" cmd /k "pnpm dev"
+:: Ensure frontend dependencies are installed (vite binary exists)
+if exist "node_modules\.bin\vite*" (
+    echo Frontend dependencies detected.
+) else (
+    echo Installing frontend dependencies...
+    if "%FRONTEND_PKG_MGR%"=="pnpm" (
+        pnpm install
+        if %errorlevel% neq 0 (
+            echo pnpm install failed, trying npm ci...
+            npm ci
+            if %errorlevel% neq 0 (
+                echo npm ci failed, trying npm install...
+                npm install
+            )
+        )
+    ) else (
+        npm ci
+        if %errorlevel% neq 0 (
+            echo npm ci failed, trying npm install...
+            npm install
+        )
+    )
+)
+:: Run frontend dev server with explicit port
+if "%FRONTEND_PKG_MGR%"=="pnpm" (
+    start "Vue Frontend Service" cmd /k "pnpm run dev -- --port %FRONTEND_PORT%"
+) else (
+    start "Vue Frontend Service" cmd /k "npm run dev -- --port %FRONTEND_PORT%"
+)
 cd ..
 
 :: Wait for frontend startup
