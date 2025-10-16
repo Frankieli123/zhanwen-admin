@@ -25,9 +25,10 @@
     "mitt": "^3.0.1",
     "nprogress": "^0.2.0",
     "pinia": "^2.1.7",
-    "pinia-plugin-persistedstate": "^4.3.0",
+    "pinia-plugin-persistedstate": "4.3.0",
     "qrcode.vue": "^3.4.1",
     "vue": "^3.4.21",
+    "vue-demi": "^0.14.7",
     "vue-draggable-plus": "^0.6.0",
     "vue-i18n": "^9.9.0",
     "vue-img-cutter": "^3.0.5",
@@ -48,5 +49,15 @@
   "engines": {
     "node": ">=18.0.0",
     "npm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@10.11.1",
+  "pnpm": {
+    "allowedBuiltDependencies": [
+      "esbuild",
+      "@parcel/watcher",
+      "core-js",
+      "es5-ext",
+      "vue-demi"
+    ]
   }
 }

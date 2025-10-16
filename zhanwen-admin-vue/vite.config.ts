@@ -12,11 +12,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 export default ({ mode }: { mode: string }) => {
   const root = process.cwd()
-  const env = loadEnv(mode, root)
-  const VITE_VERSION = env.VITE_VERSION || 'dev'
-  const VITE_BASE_URL = env.VITE_BASE_URL || '/'
-  const VITE_PORT = Number(env.VITE_PORT || 5173)
-  const VITE_API_PROXY_URL = env.VITE_API_PROXY_URL || 'http://localhost:3001'
+  // 加载 .env.* 文件，同时允许从操作系统环境变量中读取（如由批处理脚本注入的变量）
+  const env = loadEnv(mode, root, '')
+  const VITE_VERSION = env.VITE_VERSION || process.env.VITE_VERSION || 'dev'
+  const VITE_BASE_URL = env.VITE_BASE_URL || process.env.VITE_BASE_URL || '/'
+  const VITE_PORT = Number(env.VITE_PORT || process.env.VITE_PORT || 5173)
+  const VITE_API_PROXY_URL = env.VITE_API_PROXY_URL || process.env.VITE_API_PROXY_URL || 'http://localhost:3001'
 
   console.log(`VITE_API_URL = ${env.VITE_API_URL}`)
   console.log(`VERSION = ${VITE_VERSION}`)
