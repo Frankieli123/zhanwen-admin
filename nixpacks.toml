@@ -4,6 +4,7 @@ providers = ["node"]
 # 基础环境配置
 NODE_ENV = "production"
 PORT = "3001"
+NIXPACKS_NODE_VERSION = "20"
 
 # 前端构建环境变量
 VITE_API_URL = "/api"
@@ -17,7 +18,7 @@ CORS_ORIGIN = "https://zwam.vryo.de"
 # 注意：敏感信息如 JWT_SECRET, DATABASE_URL 需要在 Coolify 界面中设置
 
 [phases.setup]
-nixPkgs = ["nodejs-18_x", "npm-9_x"]
+nixPkgs = ["nodejs-20_x", "npm-10_x"]
 
 [phases.install]
 cmds = [
