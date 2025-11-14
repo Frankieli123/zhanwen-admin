@@ -1,12 +1,16 @@
 providers = ["node"]
 
+# Use a more recent nixpkgs version that includes Node.js 20
+nixpkgs = "nixpkgs/nixos-23.11"
+
 [variables]
 NODE_ENV = "development"
 PORT = "3001"
 FRONTEND_PORT = "5173"
+NIXPACKS_NODE_VERSION = "20"
 
 [phases.setup]
-nixPkgs = ["nodejs-20", "nodePackages.npm"]
+nixPkgs = ["nodejs_20", "nodePackages.npm"]
 
 [phases.install]
 cmds = [
