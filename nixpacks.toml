@@ -21,7 +21,7 @@ CORS_ORIGIN = "https://zwam.vryo.de"
 # 注意：敏感信息如 JWT_SECRET, DATABASE_URL 需要在 Coolify 界面中设置
 
 [phases.setup]
-nixPkgs = ["nodejs_20", "nodePackages.npm"]
+nixPkgs = ["nodejs_20"]
 
 [phases.install]
 cmds = [
