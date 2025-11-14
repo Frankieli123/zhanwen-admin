@@ -3,10 +3,32 @@
 
 BEGIN;
 
+CREATE TABLE IF NOT EXISTS "public_prompts" (
+  "id"          SERIAL PRIMARY KEY,
+  "name"        VARCHAR(100) NOT NULL,
+  "version"     VARCHAR(50)  NOT NULL DEFAULT '1',
+  "platform"    VARCHAR(20)  NOT NULL,
+  "scene"       VARCHAR(50)  NOT NULL,
+  "language"    VARCHAR(10)  NOT NULL,
+  "is_active"   BOOLEAN      NOT NULL DEFAULT TRUE,
+  "messages"    JSONB        NOT NULL,
+  "variables"   JSONB        NOT NULL DEFAULT '{}',
+  "formatting"  JSONB,
+  "overrides"   JSONB,
+  "metadata"    JSONB        NOT NULL DEFAULT '{}',
+  "created_at"  TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updated_at"  TIMESTAMP(3) NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "public_prompts_name_platform_scene_language_version_key"
+  ON "public_prompts" ("name", "platform", "scene", "language", "version");
+CREATE INDEX IF NOT EXISTS "public_prompts_name_idx" ON "public_prompts" ("name");
+CREATE INDEX IF NOT EXISTS "public_prompts_platform_scene_language_idx"
+  ON "public_prompts" ("platform", "scene", "language");
+
 ALTER TABLE "public_prompts"
   ADD COLUMN IF NOT EXISTS "is_active" BOOLEAN NOT NULL DEFAULT TRUE;
 
--- Optional but recommended: index for faster filtering
 CREATE INDEX IF NOT EXISTS "public_prompts_is_active_idx" ON "public_prompts" ("is_active");
 
 COMMIT;

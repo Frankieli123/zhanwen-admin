@@ -2,12 +2,13 @@ import { Router } from 'express';
 import { Request, Response } from 'express';
 import { prisma } from '@/lib/prisma';
 import { authenticateApiKey, requireApiPermission } from '@/middleware/apiKey.middleware';
-import { authenticateToken } from '@/middleware/auth.middleware';
+import { optionalAuth } from '@/middleware/auth.middleware';
 import { asyncHandler } from '@/middleware/error.middleware';
 import { logger } from '@/utils/logger';
 import { ApiResponse } from '@/types/api.types';
 import Handlebars from 'handlebars';
 import crypto from 'crypto';
+import { AIChatService } from '@/services/ai-chat.service';
 
 const router = Router();
 
@@ -16,8 +17,17 @@ function authPublicAccess(apiPermission: string) {
   return (req: Request, res: Response, next: any) => {
     const hasBearer = typeof req.headers.authorization === 'string' && req.headers.authorization.trim() !== ''
     if (hasBearer) {
-      // 管理端登录态：使用 JWT 鉴权，放行
-      return (authenticateToken as any)(req, res, next)
+      // 管理端：尝试可选JWT，不阻断；如有用户则放行，否则回退到 API Key + 权限校验
+      return (optionalAuth as any)(req, res, (err: any) => {
+        if (err) return next(err)
+        if ((req as any).user) {
+          return next()
+        }
+        ;(authenticateApiKey as any)(req, res, (err2: any) => {
+          if (err2) return next(err2)
+          return (requireApiPermission(apiPermission) as any)(req, res, next)
+        })
+      })
     }
     // 客户端：走 API Key 鉴权 + 权限校验
     ;(authenticateApiKey as any)(req, res, (err: any) => {
@@ -166,6 +176,120 @@ router.get(
       data: configs,
     };
 
+    res.json(response);
+  })
+);
+
+router.post(
+  '/public/divination/reading',
+  authPublicAccess('divination:analyze'),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const { result, options } = req.body || {};
+    if (!result) {
+      res.status(400).json({ success: false, message: '缺少参数', code: 'INVALID_INPUT' });
+      return;
+    }
+
+    // 业务日志：记录进入详细解读请求
+    try {
+      const rid0 = String((result as any)?.id || '');
+      logger.info('[Reading] incoming', { 请求ID: rid0 });
+    } catch (_) {}
+
+    const service = new AIChatService();
+    const out = await service.analyzeDivination(result, options);
+
+    try {
+      await prisma.apiCallLog.create({
+        data: {
+          modelId: out.modelId ?? null,
+          requestId: out.requestId ?? null,
+          userId: (req as any)?.user?.userId ? String((req as any).user.userId) : null,
+          platform: 'web',
+          promptHash: null,
+          tokensUsed: out.tokensUsed ?? null,
+          cost: null,
+          responseTimeMs: out.responseTimeMs,
+          status: 'success',
+          errorMessage: null,
+          metadata: {},
+          clientInfo: {},
+          timestamp: new Date(),
+        },
+      });
+    } catch (e) {
+      logger.warn('记录AI调用日志失败', e);
+    }
+
+    try {
+      const rid = String((result as any)?.id || '');
+      if (rid) {
+        await prisma.divinationReadingTask.upsert({
+          where: { resultId: rid },
+          update: {
+            status: 'done',
+            reading: out.reading,
+            modelId: out.modelId ?? null,
+            modelName: out.modelName,
+            tokensUsed: out.tokensUsed ?? null,
+            responseTimeMs: out.responseTimeMs,
+            requestId: out.requestId ?? null,
+          },
+          create: {
+            resultId: rid,
+            status: 'done',
+            reading: out.reading,
+            modelId: out.modelId ?? null,
+            modelName: out.modelName,
+            tokensUsed: out.tokensUsed ?? null,
+            responseTimeMs: out.responseTimeMs,
+            requestId: out.requestId ?? null,
+          },
+        });
+      }
+    } catch (e) {
+      logger.warn('保存待取解读任务失败', e);
+    }
+
+    const response: ApiResponse = {
+      success: true,
+      message: '分析成功',
+      data: {
+        reading: out.reading,
+        model: out.modelName,
+        tokensUsed: out.tokensUsed,
+        responseTimeMs: out.responseTimeMs,
+        requestId: out.requestId,
+      },
+    };
+
+    res.json(response);
+  })
+);
+
+router.post(
+  '/public/divination/tasks/pull',
+  authPublicAccess('divination:analyze'),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const body = req.body || {};
+    const resultIds = Array.isArray(body.resultIds) ? body.resultIds.map((x: any) => String(x)).filter(Boolean) : [];
+    if (!resultIds.length) {
+      res.json({ success: true, message: 'ok', data: [] });
+      return;
+    }
+    const rows = await prisma.divinationReadingTask.findMany({
+      where: { resultId: { in: resultIds }, status: 'done', reading: { not: null } },
+      select: {
+        resultId: true,
+        reading: true,
+        modelName: true,
+        tokensUsed: true,
+        responseTimeMs: true,
+        requestId: true,
+        updatedAt: true,
+      }
+    });
+    const response: ApiResponse = { success: true, message: 'ok', data: rows };
     res.json(response);
   })
 );
@@ -501,7 +625,7 @@ router.get(
           ...model.provider,
           apiUrl: fullApiUrl, // 添加完整的API URL
         },
-        apiKeyEncrypted: model.apiKeyEncrypted, // 包含API密钥字段
+        hasKey: !!model.apiKeyEncrypted,
       };
     });
 
@@ -572,7 +696,7 @@ router.get(
         ...primaryModel.provider,
         apiUrl: buildFullApiUrl(primaryModel.provider.name, (primaryModel as any).customApiUrl || primaryModel.provider.baseUrl), // 添加完整的API URL（优先 customApiUrl）
       },
-      apiKeyEncrypted: primaryModel.apiKeyEncrypted, // 包含API密钥字段
+      hasKey: !!primaryModel.apiKeyEncrypted,
     };
 
     const response: ApiResponse = {
@@ -645,7 +769,7 @@ router.get(
         ...model.provider,
         apiUrl: buildFullApiUrl(model.provider.name, (model as any).customApiUrl || model.provider.baseUrl),
       },
-      apiKeyEncrypted: model.apiKeyEncrypted, // 包含API密钥字段
+      hasKey: !!model.apiKeyEncrypted,
     }));
 
     const response: ApiResponse = {

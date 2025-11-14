@@ -118,30 +118,32 @@ export class AIModelService {
       }
 
       // 解密API密钥用于编辑
-      // 优先使用模型级密钥，若无则回退到服务商级密钥
-      const modelEncrypted = model.apiKeyEncrypted;
-      const providerEncrypted = (model as any)?.provider?.apiKeyEncrypted as string | null | undefined;
-      const encryptedToUse = modelEncrypted || providerEncrypted || null;
+      // 优先使用模型级密钥，若无或解密失败则回退到服务商级密钥
+      const modelEncryptedRaw = model.apiKeyEncrypted as string | null | undefined;
+      const providerEncryptedRaw = (model as any)?.provider?.apiKeyEncrypted as string | null | undefined;
+      const modelEncrypted = typeof modelEncryptedRaw === 'string' ? modelEncryptedRaw.trim() : modelEncryptedRaw;
+      const providerEncrypted = typeof providerEncryptedRaw === 'string' ? providerEncryptedRaw.trim() : providerEncryptedRaw;
 
-      if (encryptedToUse) {
+      let decryptedKey: string | null = null;
+      if (modelEncrypted) {
         try {
-          const decryptedKey = decrypt(encryptedToUse);
-          return {
-            ...model,
-            apiKeyEncrypted: decryptedKey,
-          };
+          decryptedKey = decrypt(modelEncrypted);
         } catch (decryptError) {
-          logger.warn('API密钥解密失败', { modelId: id, error: decryptError });
-          return {
-            ...model,
-            apiKeyEncrypted: null,
-          };
+          logger.warn('模型级API密钥解密失败，尝试回退到服务商密钥', { modelId: id, error: decryptError });
+        }
+      }
+
+      if (!decryptedKey && providerEncrypted) {
+        try {
+          decryptedKey = decrypt(providerEncrypted);
+        } catch (decryptError) {
+          logger.warn('服务商API密钥解密失败', { modelId: id, providerId: (model as any)?.providerId, error: decryptError });
         }
       }
 
       return {
         ...model,
-        apiKeyEncrypted: null,
+        apiKeyEncrypted: decryptedKey,
       };
     } catch (error) {
       if (error instanceof Error && error.message.includes('不存在')) {
@@ -241,10 +243,11 @@ export class AIModelService {
         throw createError('该服务商下已存在同名模型', 409, 'MODEL_NAME_EXISTS');
       }
 
-      // 加密API密钥；若未提供，则继承服务商级密钥
+      // 加密API密钥；若未提供，则继承服务商级密钥（支持apiKey和apiKeyEncrypted两个字段名）
       let encryptedApiKey: string | null = null;
-      if (data.apiKeyEncrypted) {
-        encryptedApiKey = encrypt(data.apiKeyEncrypted);
+      const newApiKey = (data as any).apiKey || data.apiKeyEncrypted;
+      if (newApiKey) {
+        encryptedApiKey = encrypt(newApiKey);
       } else if (provider?.apiKeyEncrypted) {
         // 直接复用服务商已加密的密钥以保持一致
         encryptedApiKey = provider.apiKeyEncrypted as string;
@@ -286,7 +289,8 @@ export class AIModelService {
       });
 
       // 若本次显式提供了模型密钥，则将该密钥同步到服务商级，并（可选）后续用于其他模型继承
-      if (data.apiKeyEncrypted && encryptedApiKey) {
+      const providedApiKey = (data as any).apiKey || data.apiKeyEncrypted;
+      if (providedApiKey && encryptedApiKey) {
         await prisma.aiProvider.update({
           where: { id: actualProviderId },
           data: { apiKeyEncrypted: encryptedApiKey } as Prisma.AiProviderUpdateInput,
@@ -324,13 +328,14 @@ export class AIModelService {
         throw createError('AI模型不存在', 404, 'MODEL_NOT_FOUND');
       }
 
-      // 加密新的API密钥
+      // 加密新的API密钥（支持apiKey和apiKeyEncrypted两个字段名）
       let encryptedApiKey = existingModel.apiKeyEncrypted;
       let needSyncProviderAndModels = false;
-      if (data.apiKeyEncrypted !== undefined) {
-        encryptedApiKey = data.apiKeyEncrypted ? encrypt(data.apiKeyEncrypted) : null;
+      const newApiKey = (data as any).apiKey || data.apiKeyEncrypted;
+      if (newApiKey !== undefined) {
+        encryptedApiKey = newApiKey ? encrypt(newApiKey) : null;
         // 仅当提供了非空的新密钥时，同步到服务商及其下所有模型
-        if (data.apiKeyEncrypted) {
+        if (newApiKey) {
           needSyncProviderAndModels = true;
         }
       }
@@ -490,16 +495,19 @@ export class AIModelService {
    * 3. 模型可用性 - 确认指定的模型是否可以正常调用
    * 4. 响应时间 - 测量API响应速度
    */
-  async testModelConnection(id: number): Promise<{ success: boolean; message: string; responseTime?: number }> {
+  async testModelConnection(id: number): Promise<{
+    success: boolean;
+    message: string;
+    responseTime?: number;
+    modelId?: number;
+    modelName?: string;
+    providerName?: string;
+  }> {
     try {
       const model = await this.getModelById(id);
 
-      if (!model.apiKeyEncrypted) {
-        return {
-          success: false,
-          message: 'API密钥未配置，无法测试连接',
-        };
-      }
+      // 不在此处提前返回；即使当前对象上未携带明文密钥，也允许进入实际测试，
+      // 在 performActualAPITest 中会尝试模型级明文或回退解密服务商级密钥。
 
       const startTime = Date.now();
 
@@ -511,13 +519,16 @@ export class AIModelService {
         logger.info('AI模型连接测试成功', {
           modelId: id,
           name: model.name,
-          provider: model.provider.name,
+          provider: (model as any)?.provider?.displayName || model.provider.name,
           responseTime,
         });
 
         return {
           success: true,
-          message: `连接测试成功！模型 ${model.displayName} 可正常使用`,
+          message: `模型 ${model.name} 连接测试成功`,
+          modelId: model.id,
+          modelName: model.name,
+          providerName: (model as any)?.provider?.displayName || model?.provider?.name,
           responseTime,
         };
       } catch (apiError: any) {
@@ -526,14 +537,17 @@ export class AIModelService {
         logger.warn('AI模型连接测试失败', {
           modelId: id,
           name: model.name,
-          provider: model.provider.name,
+          provider: (model as any)?.provider?.displayName || model.provider.name,
           error: apiError.message,
           responseTime,
         });
 
         return {
           success: false,
-          message: `连接测试失败：${apiError.message}`,
+          message: `模型 ${model.name} 连接测试失败：${apiError?.message || apiError}`,
+          modelId: model.id,
+          modelName: model.name,
+          providerName: (model as any)?.provider?.displayName || model?.provider?.name,
           responseTime,
         };
       }
@@ -550,27 +564,135 @@ export class AIModelService {
    * 执行实际的API测试
    */
   private async performActualAPITest(model: any): Promise<void> {
-    const { provider } = model;
-
-    // 根据不同的AI服务商执行不同的测试逻辑
-    switch (provider.name.toLowerCase()) {
-      case 'deepseek':
-        await this.testDeepSeekAPI(model);
-        break;
-      case 'openai':
-        await this.testOpenAIAPI(model);
-        break;
-      case 'anthropic':
-        await this.testAnthropicAPI(model);
-        break;
-      default:
-        // 通用测试：模拟API调用
-        await new Promise(resolve => setTimeout(resolve, 200 + Math.random() * 300));
-
-        // 模拟可能的失败情况
-        if (Math.random() < 0.1) {
-          throw new Error('API服务暂时不可用');
+    const providerName = String(model?.provider?.name || '').toLowerCase();
+    let apiKey: string | null = null;
+    const modelKeyRaw = (model?.apiKeyEncrypted ?? null) as string | null;
+    const modelKey = typeof modelKeyRaw === 'string' ? modelKeyRaw.trim() : modelKeyRaw;
+    if (modelKey) {
+      apiKey = modelKey; // getModelById 已尝试解密
+    }
+    if (!apiKey) {
+      // 运行期兜底：尝试从服务商级密钥解密
+      const provEncRaw = (model as any)?.provider?.apiKeyEncrypted as string | null | undefined;
+      const provEnc = typeof provEncRaw === 'string' ? provEncRaw.trim() : provEncRaw;
+      if (provEnc) {
+        try {
+          apiKey = decrypt(provEnc) || null;
+        } catch {
+          // ignore decrypt error, will throw not configured below
         }
+      }
+    }
+    if (!apiKey || String(apiKey).trim() === '') {
+      throw new Error('API密钥未配置');
+    }
+
+    // 计算基础地址（模型自定义优先，其次服务商）
+    const base = String((model as any)?.customApiUrl || model?.provider?.baseUrl || '');
+
+    // 构建目标URL（OpenAI兼容：/v1/chat/completions；Anthropic：/v1/messages）
+    const buildChatUrl = (prov: string, b: string) => {
+      if (!b) return prov === 'deepseek' ? 'https://api.deepseek.com/v1/chat/completions' : 'https://api.openai.com/v1/chat/completions';
+      let full = b.trim();
+      if (/\/v1\/chat\/completions\/?$/i.test(full) || /\/chat\/completions\/?$/i.test(full)) return full;
+      if (/\/v1\/?$/i.test(full)) return `${full.replace(/\/+$/,'')}/chat/completions`;
+      const slash = full.endsWith('/') ? '' : '/';
+      if (prov === 'deepseek') return `${full}${slash}chat/completions`;
+      return `${full}${slash}v1/chat/completions`;
+    };
+
+    const buildAnthropicUrl = (b: string) => {
+      if (!b) return 'https://api.anthropic.com/v1/messages';
+      let full = b.trim();
+      if (/\/v1\/messages\/?$/i.test(full) || /\/messages\/?$/i.test(full)) return full;
+      if (/\/v1\/?$/i.test(full)) return `${full.replace(/\/+$/,'')}/messages`;
+      const slash = full.endsWith('/') ? '' : '/';
+      return `${full}${slash}v1/messages`;
+    };
+
+    // 统一 12 秒超时
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 12000);
+    try {
+      if (providerName === 'anthropic') {
+        const url = buildAnthropicUrl(base);
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01'
+        };
+        const body = {
+          model: model.name,
+          max_tokens: 1,
+          messages: [
+            { role: 'user', content: 'ping' }
+          ]
+        } as any;
+
+        const resp = await fetch(url, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(body),
+          signal: controller.signal
+        });
+        if (!resp.ok) {
+          const text = await resp.text().catch(() => '');
+          throw new Error(`HTTP ${resp.status}: ${resp.statusText} ${text}`.trim());
+        }
+        const data: any = await resp.json().catch(() => ({} as any));
+        const ok = (typeof data?.id === 'string' && data.id) || Array.isArray(data?.content);
+        if (!ok) {
+          throw new Error('返回格式错误');
+        }
+        return;
+      }
+
+      // OpenAI 兼容路径（包括 deepseek、自定义、ai-wave 等）
+      const url = buildChatUrl(providerName, base);
+      // 处理 gpt-5 家族：gpt-5(-minimal|-low|-medium|-high) => model=gpt-5 + reasoning.effort
+      const originalModelName = String(model.name || '');
+      let targetModel = originalModelName;
+      let reasoningEffort: 'minimal' | 'low' | 'medium' | 'high' | undefined;
+      const g5 = originalModelName.match(/^gpt-5(?:-(minimal|low|medium|high))?$/i);
+      if (g5) {
+        targetModel = 'gpt-5';
+        if (g5[1]) reasoningEffort = g5[1].toLowerCase() as any;
+      }
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+        'Accept': 'application/json'
+      };
+      const body: any = {
+        model: targetModel,
+        messages: [ { role: 'user', content: 'ping' } ],
+        stream: false,
+        temperature: 0,
+        max_tokens: 1
+      };
+      if (reasoningEffort) {
+        body.reasoning = { effort: reasoningEffort };
+      }
+
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+        signal: controller.signal
+      });
+      if (!resp.ok) {
+        const text = await resp.text().catch(() => '');
+        throw new Error(`HTTP ${resp.status}: ${resp.statusText} ${text}`.trim());
+      }
+      const data: any = await resp.json().catch(() => ({} as any));
+      const choicesOk = Array.isArray(data?.choices) && data.choices.length > 0;
+      const idOk = typeof data?.id === 'string' && !!data.id;
+      if (!(choicesOk || idOk)) {
+        throw new Error('返回格式错误');
+      }
+      return;
+    } finally {
+      clearTimeout(timer);
     }
   }
 
@@ -798,3 +920,4 @@ export class AIModelService {
     return total > 0 ? (successful / total) * 100 : 0;
   }
 }
+ 

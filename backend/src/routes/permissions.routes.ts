@@ -46,8 +46,9 @@ function collectPermissions() {
     return results;
   };
 
-  const jwtRegex = /requirePermission\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/g;
-  const apiRegex = /requireApiPermission\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/g;
+  const jwtRegex = /requirePermission\s*\(\s*['"`]([^-'"`]+)['"`]\s*\)/g;
+  const apiRegex = /requireApiPermission\s*\(\s*['"`]([^-'"`]+)['"`]\s*\)/g;
+  const publicRegex = /authPublicAccess\s*\(\s*['"`]([^-'"`]+)['"`]\s*\)/g;
 
   for (const dir of candidateDirs) {
     try {
@@ -62,6 +63,10 @@ function collectPermissions() {
             if (p) jwtSet.add(p);
           }
           while ((m = apiRegex.exec(content)) !== null) {
+            const p = m[1].trim();
+            if (p) apiKeySet.add(p);
+          }
+          while ((m = publicRegex.exec(content)) !== null) {
             const p = m[1].trim();
             if (p) apiKeySet.add(p);
           }

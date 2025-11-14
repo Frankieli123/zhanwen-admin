@@ -38,6 +38,22 @@ export default ({ mode }: { mode: string }) => {
         '/api': {
           target: VITE_API_PROXY_URL,
           changeOrigin: true
+        },
+        '/public': {
+          target: VITE_API_PROXY_URL,
+          changeOrigin: true
+        },
+        '/auth': {
+          target: VITE_API_PROXY_URL,
+          changeOrigin: true
+        },
+        '/health': {
+          target: VITE_API_PROXY_URL,
+          changeOrigin: true
+        },
+        '/api-docs': {
+          target: VITE_API_PROXY_URL,
+          changeOrigin: true
         }
       }
     },

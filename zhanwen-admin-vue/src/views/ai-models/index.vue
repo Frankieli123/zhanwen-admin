@@ -910,14 +910,23 @@
         row.testStatus = 'running'
         try {
           const start = Date.now()
-          await testAIModelConnection(row.id)
-          row.testLatency = (Date.now() - start) / 1000
-          row.testStatus = 'success'
-          return 'success'
-        } catch {
+          const res: any = await testAIModelConnection(row.id)
+          const latencySec = typeof res?.responseTime === 'number'
+            ? Number(res.responseTime) / 1000
+            : (Date.now() - start) / 1000
+          if (res?.success === true) {
+            row.testLatency = latencySec
+            row.testStatus = 'success'
+            return 'success'
+          } else {
+            row.testStatus = 'fail'
+            row.testLatency = undefined
+            throw new Error(res?.message || 'failed')
+          }
+        } catch (e: any) {
           row.testStatus = 'fail'
           row.testLatency = undefined
-          throw new Error('failed')
+          throw new Error(e?.message || 'failed')
         }
       })
     )
@@ -1088,10 +1097,21 @@
     try {
       row.testStatus = 'running'
       const startTime = Date.now()
-      await testAIModelConnection(row.id)
-      row.testLatency = (Date.now() - startTime) / 1000
-      row.testStatus = 'success'
-      ElMessage.success(`模型 ${row.name} 连接测试成功`)
+      const res: any = await testAIModelConnection(row.id)
+      const latencySec = typeof res?.responseTime === 'number'
+        ? Number(res.responseTime) / 1000
+        : (Date.now() - startTime) / 1000
+      if (res?.success === true) {
+        row.testLatency = latencySec
+        row.testStatus = 'success'
+        const testedName = (typeof res?.modelName === 'string' && res.modelName) ? res.modelName : row.name
+        ElMessage.success(`模型 ${testedName} 连接测试成功`)
+      } else {
+        row.testStatus = 'fail'
+        row.testLatency = undefined
+        const testedName = (typeof res?.modelName === 'string' && res.modelName) ? res.modelName : row.name
+        ElMessage.error(res?.message || `模型 ${testedName} 连接测试失败`)
+      }
     } catch (error: any) {
       row.testStatus = 'fail'
       row.testLatency = undefined

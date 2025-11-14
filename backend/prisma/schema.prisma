@@ -319,3 +319,25 @@ model PromptText {
   @@index([isActive])
   @@map("prompt_texts")
 }
+
+model DivinationReadingTask {
+  id             BigInt   @id @default(autoincrement())
+  resultId       String   @map("result_id") @db.VarChar(100)
+  clientId       String?  @map("client_id") @db.VarChar(100)
+  status         String   @default("done") @db.VarChar(20)
+  reading        String?  @db.Text
+  errorMessage   String?  @map("error_message")
+  modelId        Int?     @map("model_id")
+  modelName      String?  @map("model_name") @db.VarChar(100)
+  tokensUsed     Int?     @map("tokens_used")
+  responseTimeMs Int?     @map("response_time_ms")
+  requestId      String?  @map("request_id") @db.VarChar(100)
+  payload        Json?    @default("{}")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@unique([resultId])
+  @@index([clientId])
+  @@index([status])
+  @@map("divination_reading_tasks")
+}

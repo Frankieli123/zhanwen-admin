@@ -139,11 +139,13 @@ axiosInstance.interceptors.request.use(
 
     // 自动附带公开接口所需的 X-API-Key（供 /public/** 路由使用）
     try {
+      const alreadyHasAuth = !!request.headers.get?.('Authorization')
+      const isPublicApi = /^\/public(\/|$)/.test(request.url || '')
       const fromLocal =
         typeof localStorage !== 'undefined' ? localStorage.getItem('PUBLIC_API_KEY') : null
       const fromEnv = (import.meta as any)?.env?.VITE_PUBLIC_API_KEY as string | undefined
       const apiKey = fromLocal || fromEnv
-      if (apiKey) {
+      if (apiKey && (isPublicApi || !alreadyHasAuth)) {
         request.headers.set('X-API-Key', apiKey)
       }
     } catch (e) {

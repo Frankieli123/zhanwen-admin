@@ -47,9 +47,13 @@ export const getApiKey = (id: number) => {
 
 // 创建API密钥
 export const createApiKey = (data: Partial<ApiKey>) => {
-  // 后端不接收 type 字段，剔除以避免 Joi unknown(false) 报错
-  const payload: any = { ...(data || {}) }
-  if ('type' in payload) delete payload.type
+  const { name, permissions, description, isActive, expiresAt } = data || {}
+  const payload: any = {}
+  if (name != null) payload.name = name
+  if (Array.isArray(permissions)) payload.permissions = permissions
+  if (description !== undefined) payload.description = description
+  if (typeof isActive === 'boolean') payload.isActive = isActive
+  if (expiresAt !== undefined) payload.expiresAt = expiresAt
   return request.post<{ key: string }>({
     url: '/api/api-keys',
     data: payload
@@ -58,9 +62,13 @@ export const createApiKey = (data: Partial<ApiKey>) => {
 
 // 更新API密钥
 export const updateApiKey = (id: number, data: Partial<ApiKey>) => {
-  // 剔除与后端模型不匹配的字段
-  const payload: any = { ...(data || {}) }
-  if ('type' in payload) delete payload.type
+  const { name, permissions, description, isActive, expiresAt } = data || {}
+  const payload: any = {}
+  if (name !== undefined) payload.name = name
+  if (Array.isArray(permissions)) payload.permissions = permissions
+  if (description !== undefined) payload.description = description
+  if (typeof isActive === 'boolean') payload.isActive = isActive
+  if (expiresAt !== undefined) payload.expiresAt = expiresAt
   return request.put<ApiKey>({
     url: `/api/api-keys/${id}`,
     data: payload

@@ -356,22 +356,26 @@ async function main() {
 
   console.log('✅ 创建默认应用配置');
 
-  // 8. 创建默认API Key
-  const defaultApiKey = await prisma.apiKey.upsert({
+  // 8. 创建默认API Key（按名称查找，若不存在则创建）
+  const existingDefaultApiKey = await prisma.apiKey.findFirst({
     where: { name: '默认应用API Key' },
-    update: {},
-    create: {
-      name: '默认应用API Key',
-      key: generateApiKey(),
-      permissions: [
-        'configs:read',
-        'ai_models:read',
-        'prompts:read',
-      ],
-      description: '用于应用端获取配置的默认API Key',
-      isActive: true,
-    },
   });
+  const defaultApiKey = existingDefaultApiKey
+    ? existingDefaultApiKey
+    : await prisma.apiKey.create({
+        data: {
+          name: '默认应用API Key',
+          key: generateApiKey(),
+          permissions: [
+            'configs:read',
+            'ai_models:read',
+            'prompts:read',
+            'divination:analyze',
+          ],
+          description: '用于应用端获取配置与解读的默认API Key',
+          isActive: true,
+        },
+      });
 
   console.log('✅ 创建默认API Key:', defaultApiKey.name);
 

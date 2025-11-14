@@ -312,7 +312,8 @@
     'hexagrams:read': '卦象读取',
     'hexagrams:create': '卦象创建',
     'hexagrams:update': '卦象更新',
-    'hexagrams:delete': '卦象删除'
+    'hexagrams:delete': '卦象删除',
+    'divination:analyze': '解卦分析'
   }
 
   // 模块与动作的中文映射（用于未显式配置的权限，通用回退）
@@ -324,6 +325,7 @@
     analytics: '分析',
     clients: '客户端',
     hexagrams: '卦象',
+    divination: '解卦',
     users: '用户',
     roles: '角色',
     permissions: '权限',
@@ -341,7 +343,8 @@
     regenerate: '重新生成',
     export: '导出',
     import: '导入',
-    manage: '管理'
+    manage: '管理',
+    analyze: '分析'
   }
 
   const renderPermission = (p: string) => {
