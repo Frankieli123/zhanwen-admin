@@ -8,6 +8,7 @@ nixpkgs = "nixpkgs/nixos-23.11"
 NODE_ENV = "production"
 PORT = "3001"
 NIXPACKS_NODE_VERSION = "20"
+NPM_CONFIG_PRODUCTION = "false"
 
 # 前端构建环境变量
 VITE_API_URL = "/api"
@@ -26,7 +27,7 @@ nixPkgs = ["nodejs_20"]
 [phases.install]
 cmds = [
   "npm ci || npm install",
-  "cd backend && (npm ci || npm install)",
+  "cd backend && (npm ci --include=dev || npm install --include=dev)",
   "test -f zhanwen-admin-vue/package.json || (echo \"[nixpacks] ERROR: zhanwen-admin-vue/package.json not found. Set Coolify Build context to repository root including zhanwen-admin-vue/ and backend/\"; exit 1)",
   "npm ci --prefix zhanwen-admin-vue --include=dev || npm install --prefix zhanwen-admin-vue --include=dev --legacy-peer-deps"
 ]
