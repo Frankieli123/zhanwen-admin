@@ -57,11 +57,17 @@ export class AIProviderService {
     try {
       const provider = await prisma.aiProvider.findUnique({
         where: { name },
-        // providerType 字段在更新 Prisma Client 之后会成为正式类型，这里先做一次断言避免编译告警
+        // 通过 select 只取基础字段，并用 any 规避 Prisma 复杂类型推断
         select: { baseUrl: true, isActive: true, providerType: true } as any,
       });
       if (!provider) return null;
-      return provider;
+      // 显式构造返回对象，确保符合 Promise<{ baseUrl?: string; isActive: boolean; providerType?: string } | null>
+      const p: any = provider;
+      return {
+        baseUrl: p.baseUrl,
+        isActive: !!p.isActive,
+        providerType: p.providerType,
+      };
     } catch (error) {
       logger.error('根据名称获取服务商基础信息失败', error);
       return null;
