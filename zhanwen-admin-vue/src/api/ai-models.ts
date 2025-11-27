@@ -118,6 +118,7 @@ export const toggleAIModelStatus = (id: number) => {
 export interface AIProvider {
   id?: number
   name: string
+  providerType?: string
   displayName: string
   baseUrl: string
   authType?: string

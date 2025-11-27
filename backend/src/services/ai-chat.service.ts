@@ -208,7 +208,10 @@ export class AIChatService {
         }
 
         const base = (model as any).customApiUrl || provider?.baseUrl;
-        const apiUrl = buildFullApiUrl((provider?.name || '').toLowerCase(), base);
+        const providerType = String(
+          (provider as any)?.providerType || (provider as any)?.name || ''
+        ).toLowerCase();
+        const apiUrl = buildFullApiUrl(providerType, base);
 
         const params = (model as any).parameters || {};
         const originalModelName = String(model.name || '');
@@ -219,7 +222,7 @@ export class AIChatService {
           targetModel = 'gpt-5';
           if (g5[1]) reasoningEffort = g5[1].toLowerCase() as any;
         }
-        const provName = (provider as any)?.name ? String((provider as any).name).toLowerCase() : 'unknown';
+        const provName = providerType || 'unknown';
         let maxTokens: number | undefined = typeof params.max_tokens === 'number' ? params.max_tokens : undefined;
         if (provName === 'deepseek') {
           if (typeof maxTokens !== 'number') maxTokens = 2048;

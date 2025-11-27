@@ -564,7 +564,9 @@ export class AIModelService {
    * 执行实际的API测试
    */
   private async performActualAPITest(model: any): Promise<void> {
-    const providerName = String(model?.provider?.name || '').toLowerCase();
+    const providerName = String(
+      (model as any)?.provider?.providerType || (model as any)?.provider?.name || ''
+    ).toLowerCase();
     let apiKey: string | null = null;
     const modelKeyRaw = (model?.apiKeyEncrypted ?? null) as string | null;
     const modelKey = typeof modelKeyRaw === 'string' ? modelKeyRaw.trim() : modelKeyRaw;

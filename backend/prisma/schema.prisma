@@ -10,6 +10,7 @@ datasource db {
 model AiProvider {
   id              Int       @id @default(autoincrement())
   name            String    @unique @db.VarChar(100)
+  providerType    String    @default("openai") @map("provider_type") @db.VarChar(50)
   displayName     String    @map("display_name") @db.VarChar(100)
   baseUrl         String    @map("base_url")
   authType        String    @default("api_key") @map("auth_type") @db.VarChar(20)

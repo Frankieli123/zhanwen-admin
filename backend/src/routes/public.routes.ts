@@ -596,7 +596,8 @@ router.get(
             name: true,
             displayName: true,
             baseUrl: true,
-          }
+            providerType: true,
+          } as any,
         }
       },
       orderBy: [
@@ -608,9 +609,12 @@ router.get(
     // 过滤返回的字段，包含解密后的API密钥和完整API URL
     const filteredModels = activeModels.map(model => {
       // 优先使用每个模型的 customApiUrl，其次回退到 provider.baseUrl
-      const base = (model as any).customApiUrl || model.provider.baseUrl;
-      // 使用统一函数构建完整的API URL（幂等处理）
-      const fullApiUrl = buildFullApiUrl(model.provider.name, base);
+      const base = (model as any).customApiUrl || (model as any).provider.baseUrl;
+      // 使用统一函数构建完整的API URL（幂等处理），优先使用 providerType 作为类型判断
+      const fullApiUrl = buildFullApiUrl(
+        ((model as any).provider as any)?.providerType || (model as any).provider.name,
+        base
+      );
 
       return {
         id: model.id,
@@ -668,7 +672,8 @@ router.get(
             name: true,
             displayName: true,
             baseUrl: true,
-          }
+            providerType: true,
+          } as any,
         }
       }
     });
@@ -693,8 +698,11 @@ router.get(
       priority: primaryModel.priority,
       contextWindow: primaryModel.contextWindow,
       provider: {
-        ...primaryModel.provider,
-        apiUrl: buildFullApiUrl(primaryModel.provider.name, (primaryModel as any).customApiUrl || primaryModel.provider.baseUrl), // 添加完整的API URL（优先 customApiUrl）
+        ...(primaryModel as any).provider,
+        apiUrl: buildFullApiUrl(
+          (((primaryModel as any).provider as any)?.providerType) || (primaryModel as any).provider.name,
+          (primaryModel as any).customApiUrl || (primaryModel as any).provider.baseUrl
+        ), // 添加完整的API URL（优先 customApiUrl）
       },
       hasKey: !!primaryModel.apiKeyEncrypted,
     };
@@ -746,7 +754,8 @@ router.get(
             name: true,
             displayName: true,
             baseUrl: true,
-          }
+            providerType: true,
+          } as any,
         }
       },
       orderBy: [
@@ -766,8 +775,11 @@ router.get(
       priority: model.priority,
       contextWindow: model.contextWindow,
       provider: {
-        ...model.provider,
-        apiUrl: buildFullApiUrl(model.provider.name, (model as any).customApiUrl || model.provider.baseUrl),
+        ...(model as any).provider,
+        apiUrl: buildFullApiUrl(
+          (((model as any).provider as any)?.providerType) || (model as any).provider.name,
+          (model as any).customApiUrl || (model as any).provider.baseUrl
+        ),
       },
       hasKey: !!model.apiKeyEncrypted,
     }));

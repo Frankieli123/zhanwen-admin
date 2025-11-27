@@ -102,26 +102,34 @@
         <ElFormItem label="服务商名称" prop="displayName">
           <ElInput v-model="formData.displayName" placeholder="请输入服务商名称" />
         </ElFormItem>
-        <ElFormItem v-if="dialogMode === 'create'" label="服务商类型" prop="name">
+        <ElFormItem v-if="dialogMode === 'create'" label="服务商类型" prop="providerType">
           <ElSelect
-            v-model="formData.name"
+            v-model="formData.providerType"
             placeholder="请选择服务商类型"
             @change="handleProviderTypeChange"
           >
             <ElOption label="OpenAI" value="openai" />
             <ElOption label="Gemini" value="gemini" />
             <ElOption label="Anthropic" value="anthropic" />
+            <ElOption label="DeepSeek" value="deepseek" />
           </ElSelect>
           <div class="form-tip">
             选择服务商类型后，系统会按该类型自动填充 API 地址与认证方式（如 OpenAI 兼容格式）
           </div>
+        </ElFormItem>
+        <ElFormItem label="标识" prop="name">
+          <ElInput
+            v-model="formData.name"
+            placeholder="请输入唯一标识，如 openai_main（小写英文/数字/下划线/短横线）"
+          />
+          <div class="form-tip">同一类型可配置多个服务商，但标识必须全局唯一</div>
         </ElFormItem>
         <ElFormItem label="API地址" prop="baseUrl">
           <ElInput
             v-model="formData.baseUrl"
             placeholder="请输入API地址，如：https://api.openai.com/v1"
           />
-          <div class="form-tip" v-if="formData.name === 'openai'">
+          <div class="form-tip" v-if="formData.providerType === 'openai'">
             OpenAI 兼容格式，可用于其他兼容 OpenAI API 的服务商
           </div>
         </ElFormItem>
@@ -291,6 +299,7 @@
   const formRef = ref()
   const formData = reactive<any>({
     name: '',
+    providerType: '',
     displayName: '',
     baseUrl: '',
     apiKey: '',
@@ -426,7 +435,15 @@
 
   const formRules: FormRules = {
     displayName: [{ required: true, message: '请输入服务商名称', trigger: 'blur' }],
-    name: [{ required: true, message: '请选择服务商类型', trigger: 'change' }],
+    providerType: [{ required: true, message: '请选择服务商类型', trigger: 'change' }],
+    name: [
+      { required: true, message: '请输入标识', trigger: 'blur' },
+      {
+        pattern: /^[a-z0-9_-]+$/,
+        message: '标识仅能包含小写字母、数字、下划线和短横线',
+        trigger: 'blur'
+      }
+    ],
     baseUrl: [
       { required: true, message: '请输入API地址', trigger: 'blur' },
       { type: 'url', message: '请输入有效的URL地址', trigger: 'blur' }
@@ -502,6 +519,7 @@
   const handleAddProvider = () => {
     Object.assign(formData, {
       name: '',
+      providerType: '',
       displayName: '',
       baseUrl: '',
       apiKey: '',
@@ -516,6 +534,7 @@
   const handleEdit = async (row: AIProvider) => {
     Object.assign(formData, {
       name: row.name,
+      providerType: (row as any).providerType || '',
       displayName: row.displayName,
       baseUrl: row.baseUrl,
       apiKey: '',
@@ -591,10 +610,11 @@
     if (dialogMode.value === 'create') {
       await createAIProvider({
         name: formData.name,
+        providerType: formData.providerType,
         displayName: formData.displayName,
         baseUrl: formData.baseUrl,
         isActive: formData.isActive,
-        authType: formData.name === 'openai' ? 'bearer' : 'header',
+        authType: formData.providerType === 'openai' ? 'bearer' : 'header',
         ...(formData.apiKey ? { apiKeyEncrypted: formData.apiKey } : {})
       })
       // 创建成功后，若填写明文密钥，则写入会话缓存
@@ -607,7 +627,7 @@
         displayName: formData.displayName,
         baseUrl: formData.baseUrl,
         isActive: formData.isActive,
-        authType: formData.name === 'openai' ? 'bearer' : 'header'
+        authType: formData.providerType === 'openai' ? 'bearer' : 'header'
       }
       if (clearApiKey.value) {
         payload.apiKeyEncrypted = ''

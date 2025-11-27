@@ -17,6 +17,8 @@ export interface AIProviderCreateRequest {
   metadata?: Record<string, any>;
   /** 明文传入，服务端加密保存 */
   apiKeyEncrypted?: string;
+  /** 服务商类型（openai、anthropic、deepseek、custom 等），默认 openai */
+  providerType?: string;
 }
 
 export interface AIProviderUpdateRequest {
@@ -47,13 +49,16 @@ export class AIProviderService {
   }
 
   /**
-   * 根据服务商名称获取基础信息（含 baseUrl、isActive）
+   * 根据服务商名称获取基础信息（含 baseUrl、isActive、providerType）
    */
-  async getProviderBasicByName(name: string): Promise<{ baseUrl?: string; isActive: boolean } | null> {
+  async getProviderBasicByName(
+    name: string
+  ): Promise<{ baseUrl?: string; isActive: boolean; providerType?: string } | null> {
     try {
       const provider = await prisma.aiProvider.findUnique({
         where: { name },
-        select: { baseUrl: true, isActive: true },
+        // providerType 字段在更新 Prisma Client 之后会成为正式类型，这里先做一次断言避免编译告警
+        select: { baseUrl: true, isActive: true, providerType: true } as any,
       });
       if (!provider) return null;
       return provider;
@@ -188,6 +193,7 @@ export class AIProviderService {
     try {
       // 统一规范：名称去空格并小写，避免大小写/空格差异导致的重复
       const normalizedName = (data.name || '').trim().toLowerCase();
+      const providerType = (data.providerType || 'openai').trim().toLowerCase();
 
       // 检查名称是否已存在（不区分大小写）
       const existingProvider = await prisma.aiProvider.findFirst({
@@ -203,6 +209,7 @@ export class AIProviderService {
         ...rest,
         // 使用规范化后的name写库，displayName按用户输入保留
         name: normalizedName,
+        providerType,
         supportedModels: rest.supportedModels || [],
         metadata: rest.metadata || {},
       };

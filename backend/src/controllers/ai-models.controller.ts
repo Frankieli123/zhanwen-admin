@@ -17,7 +17,7 @@ function buildFullApiUrl(providerName: string, baseUrl: string): string {
     return full;
   }
   const endsWithSlash = full.endsWith('/');
-  if (providerName === 'deepseek') {
+  if ((providerName || '').toLowerCase() === 'deepseek') {
     return endsWithSlash ? full + 'chat/completions' : full + '/chat/completions';
   }
   if (full.endsWith('/v1')) {
@@ -662,7 +662,10 @@ export const getActiveAIConfiguration = asyncHandler(async (req: Request, res: R
           ...model,
           provider: {
             ...model.provider,
-            apiUrl: buildFullApiUrl(model.provider.name, (model as any).customApiUrl || model.provider.baseUrl),
+            apiUrl: buildFullApiUrl(
+              (model.provider as any).providerType || model.provider.name,
+              (model as any).customApiUrl || model.provider.baseUrl
+            ),
           },
         }
       : null;
@@ -714,7 +717,10 @@ export const getPrimaryAIModel = asyncHandler(async (req: Request, res: Response
     ...primaryModel,
     provider: {
       ...primaryModel.provider,
-      apiUrl: buildFullApiUrl(primaryModel.provider.name, (primaryModel as any).customApiUrl || primaryModel.provider.baseUrl),
+      apiUrl: buildFullApiUrl(
+        (primaryModel.provider as any).providerType || primaryModel.provider.name,
+        (primaryModel as any).customApiUrl || primaryModel.provider.baseUrl
+      ),
     },
   } as any;
 
@@ -767,7 +773,7 @@ export const fetchModels = asyncHandler(async (req: Request, res: Response): Pro
     return;
   }
 
-  // 规范化服务商名称
+  // 规范化服务商标识（name/slug）
   const normalizedProvider = String(provider).trim().toLowerCase();
 
   // 若未显式提供 apiKey，回退到服务商级密钥
@@ -787,14 +793,21 @@ export const fetchModels = asyncHandler(async (req: Request, res: Response): Pro
   }
 
   // 计算最终 API 地址：优先请求体，其次服务商配置
-  let finalApiUrl: string | undefined = typeof apiUrl === 'string' && apiUrl.trim() ? apiUrl.trim() : undefined;
-  if (!finalApiUrl) {
-    const basic = await aiProviderService.getProviderBasicByName(normalizedProvider);
-    if (basic?.baseUrl) finalApiUrl = basic.baseUrl;
+  let finalApiUrl: string | undefined =
+    typeof apiUrl === 'string' && apiUrl.trim() ? apiUrl.trim() : undefined;
+
+  const basic = await aiProviderService.getProviderBasicByName(normalizedProvider);
+  if (!finalApiUrl && basic?.baseUrl) {
+    finalApiUrl = basic.baseUrl;
   }
 
+  // providerType：用于决定调用 OpenAI / DeepSeek / Anthropic 等分支
+  const providerType = (basic as any)?.providerType
+    ? String((basic as any).providerType).toLowerCase()
+    : normalizedProvider;
+
   const models = await ModelFetcherService.fetchModels({
-    provider: normalizedProvider,
+    provider: providerType,
     apiKey: finalApiKey,
     apiUrl: finalApiUrl,
   });
@@ -849,10 +862,13 @@ export const testAPIConnection = asyncHandler(async (req: Request, res: Response
     return;
   }
 
+  // 规范化服务商标识（name/slug）
+  const normalizedProvider = String(provider).trim().toLowerCase();
+
   // 计算最终使用的 API Key：优先请求体，其次服务商级
   let finalApiKey = typeof apiKey === 'string' ? apiKey.trim() : '';
   if (!finalApiKey) {
-    const fallback = await aiProviderService.getDecryptedApiKeyByName(provider);
+    const fallback = await aiProviderService.getDecryptedApiKeyByName(normalizedProvider);
     finalApiKey = fallback ? fallback.trim() : '';
   }
 
@@ -865,10 +881,15 @@ export const testAPIConnection = asyncHandler(async (req: Request, res: Response
     return;
   }
 
+  const basic = await aiProviderService.getProviderBasicByName(normalizedProvider);
+  const providerType = (basic as any)?.providerType
+    ? String((basic as any).providerType).toLowerCase()
+    : normalizedProvider;
+
   const isConnected = await ModelFetcherService.testConnection({
-    provider,
+    provider: providerType,
     apiKey: finalApiKey,
-    apiUrl,
+    apiUrl: apiUrl || (basic as any)?.baseUrl,
   });
 
   const response: ApiResponse = {
