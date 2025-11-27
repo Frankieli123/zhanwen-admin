@@ -159,6 +159,8 @@ router.post(
   validate({
     body: Joi.object({
       name: Joi.string().required(),
+      // 服务商类型（openai、anthropic、deepseek、gemini、custom 等），前端必选，这里设为可选字符串
+      providerType: Joi.string().optional(),
       displayName: Joi.string().required(),
       baseUrl: Joi.string().uri().required(),
       authType: Joi.string().optional(),

@@ -117,13 +117,6 @@
             选择服务商类型后，系统会按该类型自动填充 API 地址与认证方式（如 OpenAI 兼容格式）
           </div>
         </ElFormItem>
-        <ElFormItem label="标识" prop="name">
-          <ElInput
-            v-model="formData.name"
-            placeholder="请输入唯一标识，如 openai_main（小写英文/数字/下划线/短横线）"
-          />
-          <div class="form-tip">同一类型可配置多个服务商，但标识必须全局唯一</div>
-        </ElFormItem>
         <ElFormItem label="API地址" prop="baseUrl">
           <ElInput
             v-model="formData.baseUrl"
@@ -436,14 +429,6 @@
   const formRules: FormRules = {
     displayName: [{ required: true, message: '请输入服务商名称', trigger: 'blur' }],
     providerType: [{ required: true, message: '请选择服务商类型', trigger: 'change' }],
-    name: [
-      { required: true, message: '请输入标识', trigger: 'blur' },
-      {
-        pattern: /^[a-z0-9_-]+$/,
-        message: '标识仅能包含小写字母、数字、下划线和短横线',
-        trigger: 'blur'
-      }
-    ],
     baseUrl: [
       { required: true, message: '请输入API地址', trigger: 'blur' },
       { type: 'url', message: '请输入有效的URL地址', trigger: 'blur' }
@@ -609,7 +594,8 @@
     await formRef.value?.validate()
     if (dialogMode.value === 'create') {
       await createAIProvider({
-        name: formData.name,
+        // 标识与服务商名称保持一致，由后端统一做小写/去空格规范化
+        name: formData.displayName,
         providerType: formData.providerType,
         displayName: formData.displayName,
         baseUrl: formData.baseUrl,
@@ -617,11 +603,6 @@
         authType: formData.providerType === 'openai' ? 'bearer' : 'header',
         ...(formData.apiKey ? { apiKeyEncrypted: formData.apiKey } : {})
       })
-      // 创建成功后，若填写明文密钥，则写入会话缓存
-      if (formData?.name && formData?.apiKey && !isMaskedKey(formData.apiKey)) {
-        cachedApiKeyMap.value[String(formData.name)] = formData.apiKey
-        saveApiKeyCache()
-      }
     } else {
       const payload: any = {
         displayName: formData.displayName,
