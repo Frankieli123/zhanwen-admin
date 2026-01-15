@@ -118,7 +118,7 @@ export const aiModelValidation = {
       role: Joi.string().valid('primary', 'secondary', 'disabled').default('secondary'),
       priority: Joi.number().integer().min(1).max(1000).default(100),
       costPer1kTokens: Joi.number().min(0).default(0),
-      contextWindow: Joi.number().integer().min(1).max(32000).default(4000),
+      contextWindow: Joi.number().integer().min(1).max(1000000).default(4000),
       isActive: Joi.boolean().default(true),
       metadata: Joi.object().default({}),
     }),
@@ -152,7 +152,7 @@ export const aiModelValidation = {
         Joi.number().min(0),
         Joi.string().pattern(/^\d+(\.\d+)?$/).custom((value) => parseFloat(value))
       ).optional(),
-      contextWindow: Joi.number().integer().min(1).max(32000).optional(),
+      contextWindow: Joi.number().integer().min(1).max(1000000).optional(),
       isActive: Joi.boolean().optional(),
       metadata: Joi.object().optional(),
     }),

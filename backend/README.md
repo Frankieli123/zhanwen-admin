@@ -57,19 +57,19 @@ docker run -d \
 NODE_ENV=production
 PORT=3001
 JWT_SECRET=your-generated-secret-key
-DATABASE_URL=sqlite:/app/data/database.sqlite
+ENCRYPTION_KEY=your-32-character-encryption-key-here
+DATABASE_URL=postgresql://postgres:password@localhost:5432/divination_admin
 CORS_ORIGIN=https://your-frontend-domain.com
 ```
 
 ### 3. 持久化存储
 
-添加持久化卷：
-- **Source**: `/app/data`
-- **Destination**: 选择持久化存储位置
+本项目使用 PostgreSQL；请确保数据库本身已启用持久化（如 Docker volume / 托管数据库）。
+仓库根目录的 `docker-compose.yml` 已为 Postgres 配置 `postgres_data` volume。
 
 ### 4. 健康检查
 
-- **Path**: `/api/health`
+- **Path**: `/health`
 - **Port**: `3001`
 
 ## 📋 主要功能
@@ -79,15 +79,16 @@ CORS_ORIGIN=https://your-frontend-domain.com
 - ✅ 多平台应用配置管理
 - ✅ JWT身份验证和权限控制
 - ✅ RESTful API接口
-- ✅ SQLite数据库存储
+- ✅ PostgreSQL + Prisma 数据存储
 - ✅ Docker容器化部署
 
 ## 🔧 环境变量
 
 | 变量名 | 描述 | 默认值 |
 |--------|------|--------|
-| `DATABASE_URL` | 数据库连接字符串 | `sqlite:./data/database.sqlite` |
+| `DATABASE_URL` | 数据库连接字符串 | `postgresql://postgres:password@localhost:5432/divination_admin` |
 | `JWT_SECRET` | JWT密钥 | - |
+| `ENCRYPTION_KEY` | 数据加密密钥（≥32位，含字母数字） | - |
 | `JWT_EXPIRES_IN` | JWT过期时间 | `7d` |
 | `PORT` | 服务器端口 | `3001` |
 | `NODE_ENV` | 运行环境 | `production` |

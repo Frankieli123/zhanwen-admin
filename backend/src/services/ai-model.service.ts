@@ -1,5 +1,6 @@
 import { AiModel, AiProvider, Prisma } from '@prisma/client';
 import { encrypt, decrypt } from '@/utils/encryption';
+import { buildGeminiGenerateContentUrl } from '@/utils/aiApiUrl';
 import { createError } from '@/middleware/error.middleware';
 import { logger } from '@/utils/logger';
 import { prisma } from '@/lib/prisma';
@@ -291,10 +292,16 @@ export class AIModelService {
       // 若本次显式提供了模型密钥，则将该密钥同步到服务商级，并（可选）后续用于其他模型继承
       const providedApiKey = (data as any).apiKey || data.apiKeyEncrypted;
       if (providedApiKey && encryptedApiKey) {
-        await prisma.aiProvider.update({
-          where: { id: actualProviderId },
-          data: { apiKeyEncrypted: encryptedApiKey } as Prisma.AiProviderUpdateInput,
-        });
+        await prisma.$transaction([
+          prisma.aiProvider.update({
+            where: { id: actualProviderId },
+            data: { apiKeyEncrypted: encryptedApiKey } as Prisma.AiProviderUpdateInput,
+          }),
+          prisma.aiModel.updateMany({
+            where: { providerId: actualProviderId },
+            data: { apiKeyEncrypted: encryptedApiKey },
+          }),
+        ]);
       }
 
       logger.info('AI模型创建成功', {
@@ -643,6 +650,36 @@ export class AIModelService {
         }
         const data: any = await resp.json().catch(() => ({} as any));
         const ok = (typeof data?.id === 'string' && data.id) || Array.isArray(data?.content);
+        if (!ok) {
+          throw new Error('返回格式错误');
+        }
+        return;
+      }
+
+      if (providerName === 'gemini') {
+        const url = buildGeminiGenerateContentUrl(base, String(model.name || ''));
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey,
+          'Accept': 'application/json'
+        };
+        const body: any = {
+          contents: [{ role: 'user', parts: [{ text: 'ping' }] }],
+          generationConfig: { temperature: 0, maxOutputTokens: 1 }
+        };
+
+        const resp = await fetch(url, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(body),
+          signal: controller.signal
+        });
+        if (!resp.ok) {
+          const text = await resp.text().catch(() => '');
+          throw new Error(`HTTP ${resp.status}: ${resp.statusText} ${text}`.trim());
+        }
+        const data: any = await resp.json().catch(() => ({} as any));
+        const ok = Array.isArray(data?.candidates) && data.candidates.length > 0;
         if (!ok) {
           throw new Error('返回格式错误');
         }

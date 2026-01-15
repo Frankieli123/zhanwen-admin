@@ -37,10 +37,11 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@types/node": "^25.0.7",
     "@vitejs/plugin-vue": "^5.0.4",
     "sass": "^1.72.0",
-    "typescript": "^5.4.2",
     "tsx": "^4.7.1",
+    "typescript": "^5.4.2",
     "unplugin-auto-import": "^0.17.6",
     "unplugin-vue-components": "^0.26.0",
     "unplugin-vue-macros": "^2.8.0",

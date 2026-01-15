@@ -231,7 +231,7 @@
             v-model="formData.provider"
             placeholder="请选择服务商"
             :loading="providersLoading"
-            :disabled="providersLoading || providersList.length === 0"
+            :disabled="providersLoading || providersList.length === 0 || !!formData.id"
             @change="onProviderChange"
           >
             <ElOption
@@ -241,6 +241,13 @@
               :value="provider.name"
             />
           </ElSelect>
+        </ElFormItem>
+        <ElFormItem label="自定义API地址" prop="customApiUrl">
+          <ElInput
+            v-model="formData.customApiUrl"
+            placeholder="留空则使用服务商API地址"
+            clearable
+          />
         </ElFormItem>
         <ElFormItem label="API密钥" prop="apiKey">
           <ElInput
@@ -411,7 +418,7 @@
         }
 
     apiKey: string
-    baseUrl?: string
+    customApiUrl?: string
     model: string
     enabled: boolean
     switching?: boolean
@@ -429,6 +436,7 @@
 
     // 先清空，确保不会保留上一个服务商的真实密钥
     formData.apiKey = ''
+    formData.customApiUrl = ''
     // 清空已拉取的模型列表
     providerModels.value = []
 
@@ -477,7 +485,8 @@
       fetchingModels.value = true
       const res: any = await fetchProviderModels({
         provider: String(formData.provider),
-        apiKey: String(formData.apiKey || '')
+        apiKey: String(formData.apiKey || ''),
+        apiUrl: formData.customApiUrl ? String(formData.customApiUrl).trim() : undefined
       })
       const list = (res && (res.data || res.list)) || res || []
       const rawList = Array.isArray(list) ? list : []
@@ -670,9 +679,9 @@
     displayName: '',
     provider: '',
     apiKey: '',
-    baseUrl: '',
+    customApiUrl: '',
     model: '',
-    role: 'primary',
+    role: 'secondary',
     priority: 5,
     costPer1kTokens: 0,
     contextWindow: 4000,
@@ -692,6 +701,27 @@
             return
           }
           callback()
+        },
+        trigger: 'blur'
+      }
+    ],
+    customApiUrl: [
+      {
+        validator: (_rule, value, callback) => {
+          if (value === undefined || value === null || value === '') {
+            callback()
+            return
+          }
+          const url = String(value).trim()
+          if (!url) {
+            callback()
+            return
+          }
+          if (url.startsWith('http://') || url.startsWith('https://')) {
+            callback()
+          } else {
+            callback(new Error('请输入正确的URL'))
+          }
         },
         trigger: 'blur'
       }
@@ -721,7 +751,7 @@
             return
           }
           const num = Number(value)
-          if (Number.isInteger(num) && num >= 0) {
+          if (Number.isInteger(num) && num >= 1) {
             callback()
           } else {
             callback(new Error('上下文窗口需为非负整数'))
@@ -761,12 +791,16 @@
   const loadData = async (params?: Record<string, any>) => {
     loading.value = true
     try {
+      const { name, enabled, ...restSearch } = searchFormState
       const queryParams: Record<string, any> = {
         page: pagination.current,
         limit: pagination.size,
-        ...searchFormState,
+        ...restSearch,
         ...params
       }
+
+      if (name) queryParams.search = name
+      if (enabled !== undefined) queryParams.status = enabled ? 'active' : 'inactive'
 
       // 过滤空值
       Object.keys(queryParams).forEach((key) => {
@@ -975,9 +1009,9 @@
       name: '',
       provider: '',
       apiKey: '',
-      baseUrl: '',
+      customApiUrl: '',
       model: '',
-      role: 'primary',
+      role: 'secondary',
       priority: 5,
       costPer1kTokens: 0,
       contextWindow: 4000,
@@ -1012,7 +1046,7 @@
       provider: providerName,
       // 先置空，随后通过详情接口填充真实密钥
       apiKey: '',
-      baseUrl: (row as any).baseUrl || '',
+      customApiUrl: (row as any).customApiUrl || (row as any).baseUrl || '',
       // 去掉“模型ID”编辑项，保留内部值用于兼容后端（若存在）
       model: row.model || row.name || '',
       role: (row as any).role || 'secondary',
@@ -1042,7 +1076,8 @@
       const realCandidates = [
         (data as any).apiKeyDecrypted,
         (data as any).apiKeyPlain,
-        (data as any).apiKey
+        (data as any).apiKey,
+        (data as any).apiKeyEncrypted
       ]
       const fetchedReal: string = (realCandidates.find(isRealKeyCandidate) as string) || ''
       const fromCache = cachedApiKeyMap.value[prov]
@@ -1053,7 +1088,7 @@
           : fetchedReal
       // 记录预填值，用于提交时判断是否未修改
       prefilledApiKey.value = formData.apiKey || ''
-      formData.baseUrl = (data as any).customApiUrl || (data as any).baseUrl || formData.baseUrl
+      formData.customApiUrl = (data as any).customApiUrl || (data as any).baseUrl || formData.customApiUrl
       // 将“拉取到的明文密钥”写入会话缓存
       if (!fromCache && fetchedReal) {
         cachedApiKeyMap.value[prov] = fetchedReal
@@ -1146,7 +1181,8 @@
       const realCandidates = [
         (data as any).apiKeyDecrypted,
         (data as any).apiKeyPlain,
-        (data as any).apiKey
+        (data as any).apiKey,
+        (data as any).apiKeyEncrypted
       ]
       const fetchedReal: string = (realCandidates.find(isRealKeyCandidate) as string) || ''
       if (provider && fetchedReal) {
@@ -1248,7 +1284,12 @@
       const basePayload: any = { ...formData }
       // 清理空字段，避免后端校验报错
       if (!basePayload.displayName) delete basePayload.displayName
-      if (basePayload.baseUrl === '') delete basePayload.baseUrl
+      if (basePayload.customApiUrl === '') delete basePayload.customApiUrl
+      if (basePayload.costPer1kTokens === '' || basePayload.costPer1kTokens === null) delete basePayload.costPer1kTokens
+      if (basePayload.contextWindow === '' || basePayload.contextWindow === null) delete basePayload.contextWindow
+      basePayload.isActive = !!basePayload.enabled
+      delete basePayload.enabled
+      delete basePayload.id
       // 若为空，则不提交 apiKey，保持后端密钥不变
       if (
         basePayload.apiKey === '' ||
@@ -1267,6 +1308,9 @@
           saveApiKeyCache()
         }
       }
+      if (formData.id && prefilledApiKey.value && basePayload.apiKey === prefilledApiKey.value) {
+        delete basePayload.apiKey
+      }
       // 若未填写模型ID，避免发送空字段
       if (
         basePayload.model === '' ||
@@ -1278,6 +1322,8 @@
       // 编辑保持原逻辑；创建时将 provider 名称映射为 providerId 再提交
       if (formData.id) {
         // 编辑
+        delete basePayload.provider
+        delete basePayload.model
         await updateAIModel(formData.id, basePayload)
         ElMessage.success('更新成功')
       } else {
@@ -1304,18 +1350,21 @@
           ElMessage.error('未找到所选服务商，请刷新服务商列表后重试')
           return
         }
-        const tasks = ids.map(async (id) => {
+        let downgradedPrimary = false
+        const baseRole = basePayload.role
+        const tasks = ids.map(async (id, index) => {
+          const role = baseRole === 'primary' && index > 0 ? 'secondary' : baseRole
+          if (baseRole === 'primary' && index > 0) downgradedPrimary = true
           const payload: any = {
             ...basePayload,
             name: id,
             providerId: resolvedProviderId,
-            contextWindow: basePayload.contextWindow ?? 4000,
-            enabled: basePayload.enabled
+            role
           }
           // 移除前端内部字段，避免后端校验报未知字段
           delete payload.provider
+          delete payload.model
           if (!payload.displayName) delete (payload as any).displayName
-          if ((payload as any).baseUrl === '') delete (payload as any).baseUrl
           try {
             await createAIModel(payload)
             return { id, ok: true }
@@ -1329,6 +1378,9 @@
         ) as PromiseFulfilledResult<any>[]
         const success = fulfilled.map((r) => r.value).filter((x) => x.ok).length
         const fail = ids.length - success
+        if (downgradedPrimary) {
+          ElMessage.info('批量创建时仅第一个模型设为主模型，其余已自动转为副模型')
+        }
         ElMessage.success(`创建完成：成功 ${success} 个，失败 ${fail} 个`)
       }
       dialogVisible.value = false

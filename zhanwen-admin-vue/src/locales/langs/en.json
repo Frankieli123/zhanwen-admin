@@ -220,6 +220,18 @@
       "analysis": "Analysis",
       "ecommerce": "Ecommerce"
     },
+    "statistics": {
+      "title": "Statistics",
+      "usage": "Usage",
+      "endpoints": "Endpoints",
+      "errors": "Errors",
+      "performance": "Performance",
+      "geo": "Geography",
+      "devices": "Devices",
+      "models": "Models",
+      "clientMetrics": "Client Metrics",
+      "clients": "Clients"
+    },
     "widgets": {
       "title": "Components",
       "iconList": "Icon List",

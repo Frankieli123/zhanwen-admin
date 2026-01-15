@@ -10,8 +10,8 @@
     "seed": "node prisma/seed.js"
   },
   "scripts": {
-    "dev": "nodemon src/app.ts",
-    "dev:simple": "nodemon src/server.ts",
+    "dev": "nodemon --watch src --watch .env src/app.ts",
+    "dev:simple": "nodemon --watch src --watch .env src/server.ts",
     "clean": "node -e \"try{require('fs').rmSync('dist',{recursive:true,force:true});}catch(e){}\"",
     "prebuild": "npm run clean && npm run prisma:generate",
     "build": "tsc && tsc-alias",
@@ -24,6 +24,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
+    "migrate": "npm run prisma:migrate",
     "db:seed": "ts-node prisma/seed.ts"
   },
   "keywords": [

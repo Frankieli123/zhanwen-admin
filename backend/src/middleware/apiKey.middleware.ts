@@ -127,3 +127,20 @@ export const requireApiPermission = (permission: string) => {
     next();
   };
 };
+
+export const requireAnyApiPermission = (permissions: string[]) => {
+  const required = (permissions || []).map((p) => String(p || '').trim()).filter(Boolean);
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const have = req.apiKey?.permissions || [];
+    if (!required.some((p) => have.includes(p))) {
+      res.status(403).json({
+        success: false,
+        message: '权限不足',
+        code: 'INSUFFICIENT_PERMISSIONS',
+        required_permissions: required,
+      });
+      return;
+    }
+    next();
+  };
+};

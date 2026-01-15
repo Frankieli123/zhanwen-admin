@@ -6,6 +6,7 @@ import {
   getApiLogs,
   getUsageMetrics,
   getClientStats,
+  getClientsDetail,
   getRealtimeStats,
   getErrorAnalysis,
   getPerformanceMetrics,
@@ -71,6 +72,26 @@ router.get(
     })
   }),
   getClientStats
+);
+
+// /usage/clients-detail
+router.get(
+  '/usage/clients-detail',
+  requirePermission('analytics:read'),
+  validate({
+    query: Joi.object({
+      page: Joi.number().integer().min(1).default(1),
+      limit: Joi.number().integer().min(1).max(100).default(20),
+      q: Joi.string().trim().max(200).optional(),
+      platform: Joi.string().valid('web', 'ios', 'android', 'wechat').optional(),
+      isActive: Joi.boolean().optional(),
+      apiKeyId: Joi.number().integer().positive().optional(),
+      startDate: Joi.date().optional(),
+      endDate: Joi.date().optional(),
+      period: Joi.number().integer().min(1).max(365).default(30),
+    }).options({ allowUnknown: true })
+  }),
+  getClientsDetail
 );
 
 // /usage/realtime

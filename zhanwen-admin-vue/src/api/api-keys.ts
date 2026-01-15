@@ -4,6 +4,7 @@ export interface ApiKey {
   id: number
   name: string
   key: string
+  description?: string
   permissions?: string[]
   dailyLimit?: number
   totalLimit?: number

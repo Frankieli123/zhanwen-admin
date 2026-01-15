@@ -262,12 +262,29 @@ export class AIProviderService {
           ? { ...(existingProvider.metadata as Record<string, any> || {}), ...rest.metadata }
           : existingProvider.metadata,
       };
-      if (apiKeyEncrypted !== undefined) {
-        updateData.apiKeyEncrypted = apiKeyEncrypted ? encrypt(apiKeyEncrypted) : null;
+
+      const prevEncrypted = (existingProvider as any).apiKeyEncrypted as string | null | undefined;
+      const shouldUpdateKey = apiKeyEncrypted !== undefined;
+      let nextEncrypted: string | null | undefined;
+      if (shouldUpdateKey) {
+        nextEncrypted = apiKeyEncrypted ? encrypt(apiKeyEncrypted) : null;
+        updateData.apiKeyEncrypted = nextEncrypted;
       }
-      const updatedProvider = await prisma.aiProvider.update({
-        where: { id },
-        data: updateData as any,
+
+      const updatedProvider = await prisma.$transaction(async (tx) => {
+        const updated = await tx.aiProvider.update({
+          where: { id },
+          data: updateData as any,
+        });
+
+        if (shouldUpdateKey) {
+          await tx.aiModel.updateMany({
+            where: { providerId: id } as any,
+            data: { apiKeyEncrypted: nextEncrypted ?? null },
+          });
+        }
+
+        return updated;
       });
 
       logger.info('AI服务商更新成功', {

@@ -446,6 +446,9 @@
       case 'anthropic':
         formData.baseUrl = 'https://api.anthropic.com'
         break
+      case 'deepseek':
+        formData.baseUrl = 'https://api.deepseek.com'
+        break
     }
   }
 
@@ -600,7 +603,7 @@
         displayName: formData.displayName,
         baseUrl: formData.baseUrl,
         isActive: formData.isActive,
-        authType: formData.providerType === 'openai' ? 'bearer' : 'header',
+        authType: ['openai', 'deepseek'].includes(formData.providerType) ? 'bearer' : 'header',
         ...(formData.apiKey ? { apiKeyEncrypted: formData.apiKey } : {})
       })
     } else {
@@ -608,7 +611,7 @@
         displayName: formData.displayName,
         baseUrl: formData.baseUrl,
         isActive: formData.isActive,
-        authType: formData.providerType === 'openai' ? 'bearer' : 'header'
+        authType: ['openai', 'deepseek'].includes(formData.providerType) ? 'bearer' : 'header'
       }
       if (clearApiKey.value) {
         payload.apiKeyEncrypted = ''

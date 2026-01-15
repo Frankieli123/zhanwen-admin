@@ -79,3 +79,15 @@ export const deletePromptTexts = (id: number) => {
     url: `/api/prompt-texts/${id}`
   })
 }
+
+// 管理端：创建三段文本
+export const createPromptTexts = (payload: {
+  name: string
+  version?: string
+  texts: { system_prompt: string; user_intro: string; user_guidelines: string }
+}) => {
+  return request.post<PromptTexts>({
+    url: '/api/prompt-texts',
+    data: payload
+  })
+}

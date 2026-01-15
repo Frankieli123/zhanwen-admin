@@ -2,6 +2,8 @@ import { prisma } from '@/lib/prisma';
 import { logger } from '@/utils/logger';
 import { createError } from '@/middleware/error.middleware';
 import { AIModelService } from '@/services/ai-model.service';
+import { decrypt } from '@/utils/encryption';
+import { buildAnthropicMessagesUrl, buildGeminiGenerateContentUrl, buildOpenAIChatCompletionsUrl, normalizeProviderType } from '@/utils/aiApiUrl';
 
 export interface DivinationReadingOptions {
   stream?: boolean;
@@ -30,6 +32,7 @@ export interface DivinationReadingResult {
   modelName: string;
   providerName: string;
   tokensUsed?: number;
+  cost?: number;
   responseTimeMs: number;
   requestId?: string;
 }
@@ -82,23 +85,44 @@ function buildTerminologyGlossary(targetLang: string): string {
   return lines.join('\n');
 }
 
-function buildFullApiUrl(providerName: string, baseUrl: string): string {
-  if (!baseUrl) return baseUrl;
-  let full = baseUrl.trim();
-  if (/\/v1\/chat\/completions\/?$/.test(full) || /\/chat\/completions\/?$/.test(full)) {
-    return full;
+function extractApiKeyMaybeDecrypted(maybeEncryptedOrPlain: unknown): string | null {
+  if (typeof maybeEncryptedOrPlain !== 'string') return null;
+  const raw = maybeEncryptedOrPlain.trim();
+  if (!raw) return null;
+  try {
+    return decrypt(raw);
+  } catch {
+    return raw;
   }
-  const endsWithSlash = full.endsWith('/');
-  if ((providerName || '').toLowerCase() === 'deepseek') {
-    return endsWithSlash ? full + 'chat/completions' : full + '/chat/completions';
+}
+
+function extractAnthropicText(payload: any): string | null {
+  const blocks = payload?.content;
+  if (Array.isArray(blocks)) {
+    const parts = blocks
+      .map((b: any) => (b && typeof b === 'object' ? b.text : undefined))
+      .filter((t: any) => typeof t === 'string' && t.trim() !== '') as string[];
+    if (parts.length) return parts.join('');
   }
-  if (full.endsWith('/v1')) {
-    return full + '/chat/completions';
+  const alt = payload?.completion;
+  if (typeof alt === 'string' && alt.trim() !== '') return alt;
+  return null;
+}
+
+function extractGeminiText(payload: any): string | null {
+  const candidates = payload?.candidates;
+  if (Array.isArray(candidates) && candidates.length > 0) {
+    const parts = candidates[0]?.content?.parts;
+    if (Array.isArray(parts)) {
+      const texts = parts
+        .map((p: any) => (p && typeof p === 'object' ? p.text : undefined))
+        .filter((t: any) => typeof t === 'string' && t.trim() !== '') as string[];
+      if (texts.length) return texts.join('');
+    }
   }
-  if (endsWithSlash) {
-    return full + 'v1/chat/completions';
-  }
-  return full + '/v1/chat/completions';
+  const alt = payload?.text;
+  if (typeof alt === 'string' && alt.trim() !== '') return alt;
+  return null;
 }
 
 function buildUserPrompt(result: any, userIntro: string, userGuidelines: string): string {
@@ -138,16 +162,22 @@ function buildUserPrompt(result: any, userIntro: string, userGuidelines: string)
 async function getActivePromptTexts(): Promise<{ system_prompt: string; user_intro: string; user_guidelines: string } | null> {
   try {
     const t = await prisma.promptText.findFirst({
-      where: { isActive: true },
+      where: { isActive: true, name: 'universal' },
       orderBy: [{ updatedAt: 'desc' }],
       select: { texts: true }
     });
     if (!t) return null;
     const texts: any = (t as any).texts || {};
+    const systemPrompt = texts.system_prompt || '你是一名经验丰富的易学专家，精通小六壬占卜的解读和应用。你有多年研究传统中国预测学的经验，能够从卦象中解读出深刻的含义并给予有益的指导。';
+    const userIntro = texts.user_intro || '我需要你根据以下小六壬卦象信息，提供一个详细的解读。';
+    const userGuidelines =
+      typeof texts.user_guidelines === 'string'
+        ? texts.user_guidelines
+        : '请给出详细的解读，包括以下内容：\n1. 卦象综合解析（包括三宫关系和互动的深层含义）\n2. 对用户问题的针对性回答（如果有问题）\n3. 宜忌建议\n4. 未来发展趋势\n5. 化解方法或行动建议\n如果是标题，请用中文数字+顿号开头，如“一、”；副标题，请用中文数字+.开头，如“1.”；内容，如果有顺序请用如“①②③④⑤⑥⑦⑧⑨⑩” 无顺序用“-”';
     return {
-      system_prompt: texts.system_prompt || '你是一名经验丰富的易学专家，精通小六壬占卜的解读和应用。你有多年研究传统中国预测学的经验，能够从卦象中解读出深刻的含义并给予有益的指导。',
-      user_intro: texts.user_intro || '我需要你根据以下小六壬卦象信息，提供一个详细的解读。',
-      user_guidelines: texts.user_guidelines || '请给出详细的解读，包括以下内容：\n1. 卦象综合解析（包括三宫关系和互动的深层含义）\n2. 对用户问题的针对性回答（如果有问题）\n3. 宜忌建议\n4. 未来发展趋势\n5. 化解方法或行动建议\n如果是标题，请用中文数字+顿号开头，如“一、”；副标题，请用中文数字+.开头，如“1.”；内容，如果有顺序请用如“①②③④⑤⑥⑦⑧⑨⑩” 无顺序用“-”',
+      system_prompt: systemPrompt,
+      user_intro: userIntro,
+      user_guidelines: userGuidelines,
     };
   } catch (e) {
     logger.warn('读取提示词文本失败，使用默认', e);
@@ -172,7 +202,7 @@ export class AIChatService {
     const userPrompt = buildUserPrompt(
       result,
       prompts?.user_intro || '我需要你根据以下小六壬卦象信息，提供一个详细的解读。',
-      prompts?.user_guidelines || '请给出详细的解读，包括以下内容：\n1. 卦象综合解析（包括三宫关系和互动的深层含义）\n2. 对用户问题的针对性回答（如果有问题）\n3. 宜忌建议\n4. 未来发展趋势\n5. 化解方法或行动建议\n如果是标题，请用中文数字+顿号开头，如“一、”；副标题，请用中文数字+.开头，如“1.”；内容，如果有顺序请用如“①②③④⑤⑥⑦⑧⑨⑩” 无顺序用“-”'
+      prompts?.user_guidelines ?? '请给出详细的解读，包括以下内容：\n1. 卦象综合解析（包括三宫关系和互动的深层含义）\n2. 对用户问题的针对性回答（如果有问题）\n3. 宜忌建议\n4. 未来发展趋势\n5. 化解方法或行动建议\n如果是标题，请用中文数字+顿号开头，如“一、”；副标题，请用中文数字+.开头，如“1.”；内容，如果有顺序请用如“①②③④⑤⑥⑦⑧⑨⑩” 无顺序用“-”'
     );
     const targetLang = (options as any)?.language ? String((options as any).language).toLowerCase() : 'zh';
     let userPromptFinal = userPrompt;
@@ -202,16 +232,18 @@ export class AIChatService {
     for (const model of candidates) {
       try {
         const { provider } = model as any;
-        const apiKey = (model as any).apiKeyEncrypted || null; // 这里字段已在AIModelService中解密
+        const apiKey =
+          extractApiKeyMaybeDecrypted((model as any).apiKeyEncrypted) ||
+          extractApiKeyMaybeDecrypted((provider as any)?.apiKeyEncrypted) ||
+          null;
         if (!apiKey || String(apiKey).trim() === '') {
           throw new Error('模型未配置API密钥');
         }
 
         const base = (model as any).customApiUrl || provider?.baseUrl;
-        const providerType = String(
+        const providerType = normalizeProviderType(
           (provider as any)?.providerType || (provider as any)?.name || ''
-        ).toLowerCase();
-        const apiUrl = buildFullApiUrl(providerType, base);
+        );
 
         const params = (model as any).parameters || {};
         const originalModelName = String(model.name || '');
@@ -250,6 +282,142 @@ export class AIChatService {
         try {
           logger.info('[Reading] sending', { 模型: model.name, 提供商: (provider as any)?.name || 'unknown' });
         } catch (_) {}
+
+        if (providerType === 'anthropic') {
+          const apiUrl = buildAnthropicMessagesUrl(base);
+          const requestBody: any = {
+            model: originalModelName,
+            system: systemPrompt,
+            messages: [{ role: 'user', content: userPromptFinal }],
+            stream: false,
+            temperature: params.temperature ?? 0.7,
+            top_p: params.top_p,
+            max_tokens: typeof maxTokens === 'number' ? maxTokens : 1024,
+          };
+
+          const resp = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-api-key': apiKey,
+              'anthropic-version': '2023-06-01',
+            },
+            body: JSON.stringify(requestBody),
+          });
+
+          if (!resp.ok) {
+            const text = await resp.text().catch(() => '');
+            throw new Error(`HTTP ${resp.status}: ${resp.statusText} ${text}`.trim());
+          }
+
+          const data = await resp.json() as any;
+          const reading = extractAnthropicText(data);
+          if (!reading || typeof reading !== 'string') {
+            throw new Error('AI返回结果格式错误或为空');
+          }
+
+          const usage = data?.usage || {};
+          const inputTokens = typeof usage?.input_tokens === 'number' ? usage.input_tokens : undefined;
+          const outputTokens = typeof usage?.output_tokens === 'number' ? usage.output_tokens : undefined;
+          const tokensUsed =
+            typeof inputTokens === 'number' && typeof outputTokens === 'number'
+              ? inputTokens + outputTokens
+              : undefined;
+
+          const responseTimeMs = Date.now() - start;
+          let cost: number | undefined;
+          try {
+            const cpk = Number((model as any)?.costPer1kTokens ?? 0);
+            if (tokensUsed != null && Number.isFinite(cpk) && cpk > 0) {
+              cost = Number(((tokensUsed * cpk) / 1000).toFixed(6));
+            }
+          } catch {
+            // ignore cost calc error
+          }
+
+          try {
+            logger.info('[Reading] success', { 模型: model.name, 提供商: (provider as any)?.name || 'unknown', 请求ID: data?.id ?? null });
+          } catch (_) {}
+
+          return {
+            reading,
+            modelId: (model as any).id ?? null,
+            modelName: model.name,
+            providerName: provider?.name || 'unknown',
+            tokensUsed,
+            cost,
+            responseTimeMs,
+            requestId: data?.id,
+          };
+        }
+
+        if (providerType === 'gemini') {
+          const apiUrl = buildGeminiGenerateContentUrl(base, originalModelName);
+          const generationConfig: any = {};
+          if (typeof params.temperature === 'number') generationConfig.temperature = params.temperature;
+          if (typeof params.top_p === 'number') generationConfig.topP = params.top_p;
+          if (typeof maxTokens === 'number') generationConfig.maxOutputTokens = maxTokens;
+
+          const combinedPrompt = systemPrompt ? `${systemPrompt}\n\n${userPromptFinal}` : userPromptFinal;
+          const requestBody: any = {
+            contents: [{ role: 'user', parts: [{ text: combinedPrompt }] }],
+          };
+          if (Object.keys(generationConfig).length > 0) {
+            requestBody.generationConfig = generationConfig;
+          }
+
+          const resp = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-goog-api-key': apiKey,
+              'Accept': 'application/json',
+            },
+            body: JSON.stringify(requestBody),
+          });
+
+          if (!resp.ok) {
+            const text = await resp.text().catch(() => '');
+            throw new Error(`HTTP ${resp.status}: ${resp.statusText} ${text}`.trim());
+          }
+
+          const data = await resp.json() as any;
+          const reading = extractGeminiText(data);
+          if (!reading || typeof reading !== 'string') {
+            throw new Error('AI返回结果格式错误或为空');
+          }
+
+          const usage = data?.usageMetadata || {};
+          const tokensUsed = typeof usage?.totalTokenCount === 'number' ? usage.totalTokenCount : undefined;
+
+          const responseTimeMs = Date.now() - start;
+          let cost: number | undefined;
+          try {
+            const cpk = Number((model as any)?.costPer1kTokens ?? 0);
+            if (tokensUsed != null && Number.isFinite(cpk) && cpk > 0) {
+              cost = Number(((tokensUsed * cpk) / 1000).toFixed(6));
+            }
+          } catch {
+            // ignore cost calc error
+          }
+
+          try {
+            logger.info('[Reading] success', { 模型: model.name, 提供商: (provider as any)?.name || 'unknown' });
+          } catch (_) {}
+
+          return {
+            reading,
+            modelId: (model as any).id ?? null,
+            modelName: model.name,
+            providerName: provider?.name || 'unknown',
+            tokensUsed,
+            cost,
+            responseTimeMs,
+            requestId: undefined,
+          };
+        }
+
+        const apiUrl = buildOpenAIChatCompletionsUrl(providerType, base);
         const resp = await fetch(apiUrl, {
           method: 'POST',
           headers: {
@@ -273,6 +441,15 @@ export class AIChatService {
         const usage = data?.usage || {};
         const tokensUsed = usage?.total_tokens || (usage?.prompt_tokens && usage?.completion_tokens ? usage.prompt_tokens + usage.completion_tokens : undefined);
         const responseTimeMs = Date.now() - start;
+        let cost: number | undefined;
+        try {
+          const cpk = Number((model as any)?.costPer1kTokens ?? 0);
+          if (tokensUsed != null && Number.isFinite(cpk) && cpk > 0) {
+            cost = Number(((tokensUsed * cpk) / 1000).toFixed(6));
+          }
+        } catch {
+          // ignore cost calc error
+        }
 
         try {
           logger.info('[Reading] success', { 模型: model.name, 提供商: (provider as any)?.name || 'unknown', 请求ID: data?.id ?? null });
@@ -284,6 +461,7 @@ export class AIChatService {
           modelName: model.name,
           providerName: provider?.name || 'unknown',
           tokensUsed,
+          cost,
           responseTimeMs,
           requestId: data?.id,
         };

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { Request, Response } from 'express';
 import { prisma } from '@/lib/prisma';
-import { authenticateApiKey, requireApiPermission } from '@/middleware/apiKey.middleware';
+import { authenticateApiKey, requireAnyApiPermission, requireApiPermission } from '@/middleware/apiKey.middleware';
 import { optionalAuth } from '@/middleware/auth.middleware';
 import { asyncHandler } from '@/middleware/error.middleware';
 import { logger } from '@/utils/logger';
@@ -9,6 +9,7 @@ import { ApiResponse } from '@/types/api.types';
 import Handlebars from 'handlebars';
 import crypto from 'crypto';
 import { AIChatService } from '@/services/ai-chat.service';
+import { buildModelInvokeApiUrl } from '@/utils/aiApiUrl';
 
 const router = Router();
 
@@ -35,29 +36,6 @@ function authPublicAccess(apiPermission: string) {
       return (requireApiPermission(apiPermission) as any)(req, res, next)
     })
   }
-}
-
-// 统一构建完整的模型调用 API URL（兼容不同服务商，且避免重复追加）
-function buildFullApiUrl(providerName: string, baseUrl: string): string {
-  if (!baseUrl) return baseUrl;
-  let full = baseUrl.trim();
-  // 已经是最终路径，直接返回
-  if (/\/v1\/chat\/completions\/?$/.test(full) || /\/chat\/completions\/?$/.test(full)) {
-    return full;
-  }
-  // 归一化尾部斜杠
-  const endsWithSlash = full.endsWith('/');
-  if (providerName === 'deepseek') {
-    return endsWithSlash ? full + 'chat/completions' : full + '/chat/completions';
-  }
-  // OpenAI 兼容
-  if (full.endsWith('/v1')) {
-    return full + '/chat/completions';
-  }
-  if (endsWithSlash) {
-    return full + 'v1/chat/completions';
-  }
-  return full + '/v1/chat/completions';
 }
 
 // 计算基于响应数据的弱 ETag（用于客户端缓存）
@@ -196,24 +174,132 @@ router.post(
       logger.info('[Reading] incoming', { 请求ID: rid0 });
     } catch (_) {}
 
+    const startedAt = Date.now();
+    const pickHeader = (v: unknown): string | undefined => {
+      if (typeof v === 'string') return v;
+      if (Array.isArray(v) && typeof v[0] === 'string') return v[0];
+      return undefined;
+    };
+    const rawClientId = (pickHeader(req.headers['x-client-id']) || '').trim();
+    const clientId = rawClientId ? rawClientId.slice(0, 100) : null;
+    const rawPlatform = (pickHeader(req.headers['x-client-platform']) || '').trim().toLowerCase();
+    const platform = ['web', 'ios', 'android', 'wechat'].includes(rawPlatform) ? rawPlatform : 'web';
+    const apiKeyId = (req as any)?.apiKey?.id ? Number((req as any).apiKey.id) : null;
+    const ip = (pickHeader(req.headers['x-forwarded-for']) || (req as any).ip || '').toString().split(',')[0].trim();
+    const userAgent = pickHeader(req.headers['user-agent']) || '';
+    const language = (pickHeader(req.headers['accept-language']) || '').split(',')[0].trim();
+    const timezone = (pickHeader(req.headers['x-client-timezone']) || '').trim();
+    const version = (pickHeader(req.headers['x-client-version']) || '').trim();
+    const rawSessionId = (pickHeader(req.headers['x-session-id']) || '').trim();
+    const sessionId = rawSessionId ? rawSessionId.slice(0, 100) : null;
+
+    let ensuredClientId: string | null = null;
+    if (clientId) {
+      try {
+        const name = `auto-${clientId}`.slice(0, 100);
+        const updateData: any = {
+          lastActiveAt: new Date(),
+          platform,
+          userAgent: userAgent || undefined,
+          language: language || undefined,
+          timezone: timezone || undefined,
+          version: version ? version.slice(0, 50) : undefined,
+        };
+        if (apiKeyId) updateData.apiKeyId = apiKeyId;
+
+        await prisma.clientApp.upsert({
+          where: { clientId },
+          update: updateData,
+          create: {
+            clientId,
+            name,
+            platform,
+            version: version ? version.slice(0, 50) : null,
+            apiKeyId: apiKeyId || null,
+            lastActiveAt: new Date(),
+            userAgent: userAgent || null,
+            language: language || null,
+            timezone: timezone || null,
+          },
+        });
+        ensuredClientId = clientId;
+      } catch (e) {
+        logger.warn('[Reading] upsert client failed', e);
+      }
+    }
+
     const service = new AIChatService();
-    const out = await service.analyzeDivination(result, options);
+    let out: any;
+    try {
+      out = await service.analyzeDivination(result, options);
+    } catch (error) {
+      try {
+        await prisma.apiCallLog.create({
+          data: {
+            modelId: null,
+            requestId: null,
+            userId: (req as any)?.user?.userId ? String((req as any).user.userId) : null,
+            clientId: ensuredClientId,
+            sessionId,
+            platform,
+            promptHash: null,
+            tokensUsed: null,
+            cost: null,
+            responseTimeMs: Math.max(0, Date.now() - startedAt),
+            status: 'error',
+            errorMessage: String((error as any)?.message || 'Unknown error').slice(0, 500),
+            metadata: {
+              endpoint: '/public/divination/reading',
+              path: (req as any).originalUrl || req.url,
+              method: req.method,
+              ip: ip || undefined,
+              userAgent: userAgent || undefined,
+              apiKeyId: apiKeyId || undefined,
+            },
+            clientInfo: {
+              userAgent: userAgent || undefined,
+              language: language || undefined,
+              timezone: timezone || undefined,
+              version: version || undefined,
+            },
+            timestamp: new Date(),
+          },
+        });
+      } catch (e) {
+        logger.warn('记录AI调用日志失败', e);
+      }
+      throw error;
+    }
 
     try {
-      await prisma.apiCallLog.create({
-        data: {
-          modelId: out.modelId ?? null,
-          requestId: out.requestId ?? null,
-          userId: (req as any)?.user?.userId ? String((req as any).user.userId) : null,
-          platform: 'web',
-          promptHash: null,
-          tokensUsed: out.tokensUsed ?? null,
-          cost: null,
-          responseTimeMs: out.responseTimeMs,
+        await prisma.apiCallLog.create({
+          data: {
+            modelId: out.modelId ?? null,
+            requestId: out.requestId ?? null,
+            userId: (req as any)?.user?.userId ? String((req as any).user.userId) : null,
+            clientId: ensuredClientId,
+            sessionId,
+            platform,
+            promptHash: null,
+            tokensUsed: out.tokensUsed ?? null,
+            cost: (out as any)?.cost ?? null,
+            responseTimeMs: out.responseTimeMs ?? Math.max(0, Date.now() - startedAt),
           status: 'success',
           errorMessage: null,
-          metadata: {},
-          clientInfo: {},
+          metadata: {
+            endpoint: '/public/divination/reading',
+            path: (req as any).originalUrl || req.url,
+            method: req.method,
+            ip: ip || undefined,
+            userAgent: userAgent || undefined,
+            apiKeyId: apiKeyId || undefined,
+          },
+          clientInfo: {
+            userAgent: userAgent || undefined,
+            language: language || undefined,
+            timezone: timezone || undefined,
+            version: version || undefined,
+          },
           timestamp: new Date(),
         },
       });
@@ -396,8 +482,9 @@ router.get(
     const scene = (req.query.scene as string) || undefined;
     const language = (req.query.lang as string) || undefined;
     const version = (req.query.version as string) || undefined;
+    const name = (req.query.name as string) || 'universal';
 
-    const where: any = { isActive: true };
+    const where: any = { isActive: true, name };
     if (version) where.version = version;
 
     const t = await prisma.promptText.findFirst({
@@ -459,7 +546,8 @@ router.head(
   '/public/prompt-texts/active',
   authPublicAccess('prompts:read'),
   asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const where: any = { isActive: true };
+    const name = (req.query.name as string) || 'universal';
+    const where: any = { isActive: true, name };
 
     const t = await prisma.promptText.findFirst({
       where,
@@ -611,9 +699,10 @@ router.get(
       // 优先使用每个模型的 customApiUrl，其次回退到 provider.baseUrl
       const base = (model as any).customApiUrl || (model as any).provider.baseUrl;
       // 使用统一函数构建完整的API URL（幂等处理），优先使用 providerType 作为类型判断
-      const fullApiUrl = buildFullApiUrl(
+      const fullApiUrl = buildModelInvokeApiUrl(
         ((model as any).provider as any)?.providerType || (model as any).provider.name,
-        base
+        base,
+        (model as any)?.name
       );
 
       return {
@@ -699,9 +788,10 @@ router.get(
       contextWindow: primaryModel.contextWindow,
       provider: {
         ...(primaryModel as any).provider,
-        apiUrl: buildFullApiUrl(
+        apiUrl: buildModelInvokeApiUrl(
           (((primaryModel as any).provider as any)?.providerType) || (primaryModel as any).provider.name,
-          (primaryModel as any).customApiUrl || (primaryModel as any).provider.baseUrl
+          (primaryModel as any).customApiUrl || (primaryModel as any).provider.baseUrl,
+          (primaryModel as any)?.name
         ), // 添加完整的API URL（优先 customApiUrl）
       },
       hasKey: !!primaryModel.apiKeyEncrypted,
@@ -776,9 +866,10 @@ router.get(
       contextWindow: model.contextWindow,
       provider: {
         ...(model as any).provider,
-        apiUrl: buildFullApiUrl(
+        apiUrl: buildModelInvokeApiUrl(
           (((model as any).provider as any)?.providerType) || (model as any).provider.name,
-          (model as any).customApiUrl || (model as any).provider.baseUrl
+          (model as any).customApiUrl || (model as any).provider.baseUrl,
+          (model as any)?.name
         ),
       },
       hasKey: !!model.apiKeyEncrypted,
@@ -1087,13 +1178,18 @@ router.post(
       responseTimeMs,
       status,
       errorMessage,
-      metadata = {},
-      clientInfo = {},
+      metadata: metadataRaw = {},
+      clientInfo: clientInfoRaw = {},
       timestamp
     } = req.body;
 
+    const metadata =
+      metadataRaw && typeof metadataRaw === 'object' && !Array.isArray(metadataRaw) ? metadataRaw : {};
+    const clientInfo =
+      clientInfoRaw && typeof clientInfoRaw === 'object' && !Array.isArray(clientInfoRaw) ? clientInfoRaw : {};
+
     // 如果提供了clientId，更新客户端活跃时间和统计
-    if (clientId && clientInfo) {
+    if (clientId) {
       const updateData: any = {
         lastActiveAt: new Date(),
         totalRequests: { increment: 1 },
@@ -1147,6 +1243,7 @@ router.post(
         modelId: modelId ? parseInt(modelId) : null,
         requestId,
         userId,
+        clientId: clientId || null,
         sessionId,
         platform,
         promptHash,
@@ -1213,7 +1310,7 @@ router.post(
 router.post(
   '/public/usage/metrics',
   authenticateApiKey,
-  requireApiPermission('usage:write'),
+  requireAnyApiPermission(['usage:write', 'divination:analyze']),
   asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { date, platform, clientId, metrics } = req.body;
 
@@ -1226,14 +1323,32 @@ router.post(
       return;
     }
 
+    const reportDate = (() => {
+      const d = date ? new Date(date) : new Date();
+      if (Number.isNaN(d.getTime())) return null;
+      d.setHours(0, 0, 0, 0);
+      return d;
+    })();
+    if (!reportDate) {
+      res.status(400).json({
+        success: false,
+        message: 'date格式不正确',
+        code: 'INVALID_DATE'
+      });
+      return;
+    }
+
+    const reportPlatform =
+      String(platform || (req.headers['x-client-platform'] as string) || '').trim() || 'unknown';
+
     const metricsData = metrics.map((metric: any) => ({
-      date: new Date(date),
-      platform,
-      clientId: clientId || metric.metadata?.clientId,
-      sessionId: metric.metadata?.sessionId,
-      userId: metric.metadata?.userId,
+      date: reportDate,
+      platform: reportPlatform,
+      clientId: clientId || metric.metadata?.clientId || null,
+      sessionId: metric.metadata?.sessionId || null,
+      userId: metric.metadata?.userId || null,
       metricName: metric.name,
-      metricValue: BigInt(metric.value),
+      metricValue: BigInt(Math.trunc(Number(metric.value) || 0)),
       metadata: metric.metadata || {},
       clientInfo: metric.clientInfo || {},
     }));
@@ -1252,6 +1367,9 @@ router.post(
         update: {
           metricValue: metricData.metricValue,
           metadata: metricData.metadata,
+          clientInfo: metricData.clientInfo,
+          sessionId: metricData.sessionId,
+          userId: metricData.userId,
         },
         create: metricData,
       });

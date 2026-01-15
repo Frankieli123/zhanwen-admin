@@ -20,46 +20,109 @@
 </template>
 
 <script setup lang="ts">
-  import { reactive } from 'vue'
+  import { reactive, onMounted } from 'vue'
   import { storeToRefs } from 'pinia'
   import { useSettingStore } from '@/store/modules/setting'
+  import { getClientStats, getUsageMetrics } from '@/api/usage'
 
   const { showWorkTab } = storeToRefs(useSettingStore())
 
   const dataList = reactive([
     {
-      des: '总访问次数',
+      des: '近7天调用',
       icon: '&#xe721;',
       startVal: 0,
       duration: 1000,
-      num: 9120,
-      change: '+20%'
+      num: 0,
+      change: '+0%'
     },
     {
-      des: '在线访客数',
+      des: '活跃客户端Top100(7天)',
       icon: '&#xe724;',
       startVal: 0,
       duration: 1000,
-      num: 182,
-      change: '+10%'
+      num: 0,
+      change: '+0%'
     },
     {
-      des: '点击量',
+      des: '近7天错误',
       icon: '&#xe7aa;',
       startVal: 0,
       duration: 1000,
-      num: 9520,
-      change: '-12%'
+      num: 0,
+      change: '+0%'
     },
     {
-      des: '新用户',
+      des: '平均响应(ms)',
       icon: '&#xe82a;',
       startVal: 0,
       duration: 1000,
-      num: 156,
-      change: '+30%'
+      num: 0,
+      change: '+0%'
     }
   ])
+
+  const sumMetrics = (data: any) => {
+    const series = Array.isArray(data?.timeSeries) ? data.timeSeries : []
+    const requests = series.reduce((acc: number, cur: any) => acc + Number(cur?.requests || 0), 0)
+    const errors = series.reduce((acc: number, cur: any) => acc + Number(cur?.errors || 0), 0)
+
+    let weightedRt = 0
+    let weightedN = 0
+    for (const p of series) {
+      const r = Number(p?.requests || 0)
+      const rt = Number(p?.avgResponseTime || 0)
+      if (r > 0 && rt >= 0) {
+        weightedRt += rt * r
+        weightedN += r
+      }
+    }
+    const avgResponseTime = weightedN ? Math.round(weightedRt / weightedN) : 0
+    return { requests, errors, avgResponseTime }
+  }
+
+  const calcChange = (current: number, previous: number, higherBetter: boolean = true) => {
+    if (!previous) return current ? '+100%' : '+0%'
+    const raw = ((current - previous) / previous) * 100
+    const pct = higherBetter ? raw : -raw
+    const sign = pct > 0 ? '+' : pct < 0 ? '' : '+'
+    return `${sign}${pct.toFixed(0)}%`
+  }
+
+  onMounted(async () => {
+    try {
+      const now = new Date()
+      const day = 24 * 60 * 60 * 1000
+      const start7 = new Date(now.getTime() - 7 * day)
+      const start14 = new Date(now.getTime() - 14 * day)
+
+      const [currMetricsRes, prevMetricsRes, clientsRes] = await Promise.allSettled([
+        getUsageMetrics({ startDate: start7.toISOString(), endDate: now.toISOString(), groupBy: 'day' }),
+        getUsageMetrics({ startDate: start14.toISOString(), endDate: start7.toISOString(), groupBy: 'day' }),
+        getClientStats({ period: 7, top: 100 })
+      ])
+
+      const currMetricsRaw = currMetricsRes.status === 'fulfilled' ? currMetricsRes.value : undefined
+      const prevMetricsRaw = prevMetricsRes.status === 'fulfilled' ? prevMetricsRes.value : undefined
+      const clients = clientsRes.status === 'fulfilled' ? clientsRes.value : undefined
+
+      const curr = sumMetrics(currMetricsRaw)
+      const prev = sumMetrics(prevMetricsRaw)
+
+      dataList[0].num = curr.requests
+      dataList[0].change = calcChange(curr.requests, prev.requests)
+
+      dataList[1].num = Array.isArray(clients) ? clients.length : 0
+
+      dataList[2].num = curr.errors
+      dataList[2].change = calcChange(curr.errors, prev.errors, false)
+
+      dataList[3].num = curr.avgResponseTime
+      dataList[3].change = calcChange(curr.avgResponseTime, prev.avgResponseTime, false)
+    } catch {
+      // keep defaults
+    }
+  })
 </script>
 
 <style lang="scss" scoped>

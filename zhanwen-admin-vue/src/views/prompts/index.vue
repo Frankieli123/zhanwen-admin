@@ -32,7 +32,12 @@
         layout="refresh,size,fullscreen,columns,settings"
         fullClass="art-table-card"
       >
-        <!-- 公共提示词为只读，移除新增/删除按钮 -->
+        <template #left>
+          <ElButton type="primary" :disabled="!canEdit" @click="handleAdd">
+            <ElIcon><Plus /></ElIcon>
+            添加提示词
+          </ElButton>
+        </template>
       </ArtTableHeader>
 
       <!-- 表格主体 -->
@@ -131,7 +136,7 @@
     </ElDrawer>
 
     <!-- 编辑抽屉（支持名称/版本与三段文本，需登录） -->
-    <ElDrawer v-model="editVisible" :title="`编辑三段文本 - ${editForm.name || ''}`" size="50%">
+    <ElDrawer v-model="editVisible" :title="`编辑提示词 - ${editForm.name || ''}`" size="50%">
       <ElForm v-loading="editLoading" label-width="110px" :model="editForm">
         <ElFormItem label="名称">
           <ElInput v-model="editForm.name" placeholder="请输入名称" />
@@ -139,30 +144,48 @@
         <ElFormItem label="版本">
           <ElInput v-model="editForm.version" placeholder="简化版本标识，如 1 或 2025-09-09" />
         </ElFormItem>
-        <ElFormItem label="System 文本">
-          <ElInput
-            type="textarea"
-            v-model="editForm.texts.system_prompt"
-            :rows="5"
-            placeholder="请输入 System 文本（≤1000）"
-          />
+        <ElFormItem label="结构类型">
+          <ElRadioGroup v-model="editMode">
+            <ElRadio label="single">一段式</ElRadio>
+            <ElRadio label="triple">三段式</ElRadio>
+          </ElRadioGroup>
         </ElFormItem>
-        <ElFormItem label="开头引导语">
-          <ElInput
-            type="textarea"
-            v-model="editForm.texts.user_intro"
-            :rows="3"
-            placeholder="请输入开头引导语（≤200）"
-          />
-        </ElFormItem>
-        <ElFormItem label="末尾说明块">
-          <ElInput
-            type="textarea"
-            v-model="editForm.texts.user_guidelines"
-            :rows="8"
-            placeholder="请输入末尾说明块（≤4000，换行会保留）"
-          />
-        </ElFormItem>
+        <template v-if="editMode === 'single'">
+          <ElFormItem label="提示词内容">
+            <ElInput
+              type="textarea"
+              v-model="editSingleText"
+              :rows="12"
+              placeholder="请输入完整的一段式提示词（将作为用户输入模板使用）"
+            />
+          </ElFormItem>
+        </template>
+        <template v-else>
+          <ElFormItem label="System 文本">
+            <ElInput
+              type="textarea"
+              v-model="editForm.texts.system_prompt"
+              :rows="5"
+              placeholder="请输入 System 文本（≤1000）"
+            />
+          </ElFormItem>
+          <ElFormItem label="开头引导语">
+            <ElInput
+              type="textarea"
+              v-model="editForm.texts.user_intro"
+              :rows="3"
+              placeholder="请输入开头引导语（≤4000）"
+            />
+          </ElFormItem>
+          <ElFormItem label="末尾说明块">
+            <ElInput
+              type="textarea"
+              v-model="editForm.texts.user_guidelines"
+              :rows="8"
+              placeholder="请输入末尾说明块（≤4000，换行会保留）"
+            />
+          </ElFormItem>
+        </template>
         <ElFormItem>
           <ElButton type="primary" :loading="editLoading" @click="submitEdit">保存</ElButton>
           <ElButton @click="editVisible = false">取消</ElButton>
@@ -185,6 +208,7 @@
     ElCard,
     ElTag,
     ElButton,
+    ElIcon,
     ElSwitch,
     ElTooltip,
     ElDrawer,
@@ -192,8 +216,11 @@
     ElDescriptionsItem,
     ElForm,
     ElFormItem,
-    ElInput
+    ElInput,
+    ElRadioGroup,
+    ElRadio
   } from 'element-plus'
+  import { Plus } from '@element-plus/icons-vue'
   // 只读列表，无需新增/删除图标
   import ArtTable from '@/components/core/tables/art-table/index.vue'
   import ArtTableHeader from '@/components/core/tables/art-table-header/index.vue'
@@ -205,6 +232,7 @@
     updatePromptTexts,
     duplicatePromptTexts,
     deletePromptTexts,
+    createPromptTexts,
     type PromptTexts
   } from '@/api/prompt-texts'
   import { useUserStore } from '@/store/modules/user'
@@ -412,24 +440,62 @@
   const canEdit = computed(() => !!userStore.accessToken)
   const editVisible = ref(false)
   const editLoading = ref(false)
+  const isCreating = ref(false)
+  const editMode = ref<'single' | 'triple'>('single')
+  const editSingleText = ref('')
   const editForm = reactive<PromptTexts>({
     id: 0,
     name: '',
     version: '',
     
-    active: true,
+    active: false,
     texts: { system_prompt: '', user_intro: '', user_guidelines: '' },
     createdAt: '',
     lastUsedAt: '',
     updatedAt: ''
   })
+
+  const syncEditModeFromTexts = (cfg: PromptTexts) => {
+    const t = cfg?.texts || { system_prompt: '', user_intro: '', user_guidelines: '' }
+    if (!t.system_prompt && !t.user_guidelines && t.user_intro) {
+      editMode.value = 'single'
+      editSingleText.value = t.user_intro
+    } else {
+      editMode.value = 'triple'
+      editSingleText.value = t.user_intro || ''
+    }
+  }
+
+  // 新建：从空白启动编辑抽屉
+  const handleAdd = () => {
+    if (!canEdit.value) {
+      ElMessage.warning('请先登录再执行此操作')
+      return
+    }
+    isCreating.value = true
+    editMode.value = 'single'
+    editSingleText.value = ''
+    Object.assign(editForm, {
+      id: 0,
+      name: '',
+      version: '',
+      active: false,
+      texts: { system_prompt: '', user_intro: '', user_guidelines: '' },
+      createdAt: '',
+      lastUsedAt: '',
+      updatedAt: ''
+    })
+    editVisible.value = true
+  }
   const handleEdit = async (row: PromptTexts) => {
+    isCreating.value = false
     // 打开抽屉
     editVisible.value = true
     // 命中缓存则直接使用缓存，避免网络等待
     const cached = getCachedDetail(row.id)
     if (cached) {
       Object.assign(editForm, cached)
+      syncEditModeFromTexts(editForm)
       editLoading.value = false
       return
     }
@@ -453,6 +519,7 @@
       const detail = await getPromptTextsDetail(row.id)
       Object.assign(editForm, detail)
       setCachedDetail(row.id, detail)
+      syncEditModeFromTexts(editForm)
     } catch (e) {
       console.error('[PromptTexts] load edit detail error:', e)
       ElMessage.error('加载文本详情失败，请检查权限或网络')
@@ -463,20 +530,45 @@
   const submitEdit = async () => {
     try {
       editLoading.value = true
-      await updatePromptTexts(editForm.id, { name: editForm.name, version: editForm.version, texts: { ...editForm.texts } })
-      ElMessage.success('保存成功')
-      // 保存后刷新缓存
-      try {
-        const latest: PromptTexts = JSON.parse(JSON.stringify(editForm))
-        setCachedDetail(editForm.id, latest)
-      } catch {
-        /* ignore cache update error */
+      const textsPayload = { ...editForm.texts }
+      if (editMode.value === 'single') {
+        textsPayload.system_prompt = ''
+        textsPayload.user_guidelines = ''
+        textsPayload.user_intro = editSingleText.value || ''
+        editForm.texts.system_prompt = ''
+        editForm.texts.user_guidelines = ''
+        editForm.texts.user_intro = editSingleText.value || ''
+      }
+      if (isCreating.value) {
+        // 创建新记录
+        await createPromptTexts({
+          name: editForm.name,
+          version: editForm.version || undefined,
+          texts: textsPayload
+        })
+        ElMessage.success('创建成功')
+      } else {
+        // 更新已有记录
+        await updatePromptTexts(editForm.id, {
+          name: editForm.name,
+          version: editForm.version,
+          texts: textsPayload
+        })
+        ElMessage.success('保存成功')
+        // 保存后刷新缓存
+        try {
+          const latest: PromptTexts = JSON.parse(JSON.stringify(editForm))
+          setCachedDetail(editForm.id, latest)
+        } catch {
+          /* ignore cache update error */
+        }
       }
       editVisible.value = false
       loadData()
-    } catch (e) {
-      console.error('[PromptTexts] update error:', e)
-      ElMessage.error('保存失败')
+    } catch (e: any) {
+      console.error('[PromptTexts] submit error:', e)
+      const msg = e?.response?.data?.message || e?.message || (isCreating.value ? '创建失败' : '保存失败')
+      ElMessage.error(msg)
     } finally {
       editLoading.value = false
     }

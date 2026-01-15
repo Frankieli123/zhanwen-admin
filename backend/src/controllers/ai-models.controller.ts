@@ -5,29 +5,10 @@ import { ModelFetcherService } from '@/services/model-fetcher.service';
 import { asyncHandler } from '@/middleware/error.middleware';
 import { ApiResponse, PaginationQuery } from '@/types/api.types';
 import { ensureStandardResponse } from '@/utils/response';
+import { buildModelInvokeApiUrl, normalizeProviderType } from '@/utils/aiApiUrl';
 
 const aiModelService = new AIModelService();
 const aiProviderService = new AIProviderService();
-
-// 统一构建完整的模型调用 API URL（与 public.routes.ts 保持一致，并避免重复追加）
-function buildFullApiUrl(providerName: string, baseUrl: string): string {
-  if (!baseUrl) return baseUrl;
-  let full = baseUrl.trim();
-  if (/\/v1\/chat\/completions\/?$/.test(full) || /\/chat\/completions\/?$/.test(full)) {
-    return full;
-  }
-  const endsWithSlash = full.endsWith('/');
-  if ((providerName || '').toLowerCase() === 'deepseek') {
-    return endsWithSlash ? full + 'chat/completions' : full + '/chat/completions';
-  }
-  if (full.endsWith('/v1')) {
-    return full + '/chat/completions';
-  }
-  if (endsWithSlash) {
-    return full + 'v1/chat/completions';
-  }
-  return full + '/v1/chat/completions';
-}
 
 /**
  * @swagger
@@ -411,7 +392,6 @@ export const getActiveAIProviders = asyncHandler(async (req: Request, res: Respo
 
   // 仅对具备更高权限的用户返回明文密钥
   const user = req.user;
-  console.log('🔍 用户权限检查:', { user: user ? { role: user.role, permissions: user.permissions } : null });
   const canReturnPlain = !!user && (
     user.role === 'super_admin' ||
     user.role === 'admin' ||
@@ -420,15 +400,12 @@ export const getActiveAIProviders = asyncHandler(async (req: Request, res: Respo
       user.permissions.includes('ai_models:create')
     ))
   );
-  console.log('🔑 是否返回明文密钥:', canReturnPlain);
 
   let data: any = providers;
   if (canReturnPlain) {
     data = await Promise.all(
       providers.map(async (p: any) => {
-        console.log(`🔍 正在解密服务商 ${p.name} (ID: ${p.id}) 的密钥...`);
         const key = await aiProviderService.getDecryptedApiKeyById(p.id);
-        console.log(`🔑 服务商 ${p.name} 解密结果:`, key ? '有密钥' : '无密钥');
         return { ...p, apiKeyDecrypted: key || null };
       })
     );
@@ -662,9 +639,10 @@ export const getActiveAIConfiguration = asyncHandler(async (req: Request, res: R
           ...model,
           provider: {
             ...model.provider,
-            apiUrl: buildFullApiUrl(
+            apiUrl: buildModelInvokeApiUrl(
               (model.provider as any).providerType || model.provider.name,
-              (model as any).customApiUrl || model.provider.baseUrl
+              (model as any).customApiUrl || model.provider.baseUrl,
+              model.name
             ),
           },
         }
@@ -717,9 +695,10 @@ export const getPrimaryAIModel = asyncHandler(async (req: Request, res: Response
     ...primaryModel,
     provider: {
       ...primaryModel.provider,
-      apiUrl: buildFullApiUrl(
+      apiUrl: buildModelInvokeApiUrl(
         (primaryModel.provider as any).providerType || primaryModel.provider.name,
-        (primaryModel as any).customApiUrl || primaryModel.provider.baseUrl
+        (primaryModel as any).customApiUrl || primaryModel.provider.baseUrl,
+        primaryModel.name
       ),
     },
   } as any;
@@ -802,9 +781,7 @@ export const fetchModels = asyncHandler(async (req: Request, res: Response): Pro
   }
 
   // providerType：用于决定调用 OpenAI / DeepSeek / Anthropic 等分支
-  const providerType = (basic as any)?.providerType
-    ? String((basic as any).providerType).toLowerCase()
-    : normalizedProvider;
+  const providerType = normalizeProviderType((basic as any)?.providerType || normalizedProvider) || normalizedProvider;
 
   const models = await ModelFetcherService.fetchModels({
     provider: providerType,
@@ -882,9 +859,7 @@ export const testAPIConnection = asyncHandler(async (req: Request, res: Response
   }
 
   const basic = await aiProviderService.getProviderBasicByName(normalizedProvider);
-  const providerType = (basic as any)?.providerType
-    ? String((basic as any).providerType).toLowerCase()
-    : normalizedProvider;
+  const providerType = normalizeProviderType((basic as any)?.providerType || normalizedProvider) || normalizedProvider;
 
   const isConnected = await ModelFetcherService.testConnection({
     provider: providerType,

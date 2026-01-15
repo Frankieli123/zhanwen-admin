@@ -121,6 +121,14 @@ export const getApiLogs = async (req: Request, res: Response) => {
         requestId: true,
         sessionId: true,
         modelId: true,
+        model: {
+          select: {
+            id: true,
+            name: true,
+            displayName: true,
+            provider: { select: { name: true, displayName: true } },
+          },
+        },
         tokensUsed: true,
         cost: true,
         responseTimeMs: true,
@@ -141,6 +149,9 @@ export const getApiLogs = async (req: Request, res: Response) => {
         ip: meta.ip ?? meta.ipAddress ?? getFromMeta(meta, ['ip', 'ipAddress']),
         userAgent: meta.userAgent ?? meta.ua ?? getFromMeta(meta, ['userAgent', 'ua']),
       };
+      const model = (log as any).model || undefined;
+      const modelName = model ? (model.displayName || model.name) : undefined;
+      const providerName = model?.provider ? (model.provider.displayName || model.provider.name) : undefined;
       const costVal = (log as any).cost != null ? Number((log as any).cost) : undefined;
 
       return {
@@ -152,6 +163,8 @@ export const getApiLogs = async (req: Request, res: Response) => {
         requestId: (log as any).requestId || undefined,
         sessionId: (log as any).sessionId || undefined,
         modelId: (log as any).modelId ?? undefined,
+        modelName,
+        providerName,
         tokensUsed: (log as any).tokensUsed ?? undefined,
         cost: costVal,
         endpoint: deriveEndpoint(meta),
@@ -347,6 +360,185 @@ export const getClientStats = async (req: Request, res: Response) => {
   } catch (error) {
     logger.error('获取客户端统计失败', { error });
     throw createError('获取客户端统计失败', 500);
+  }
+};
+
+// GET /usage/clients-detail
+export const getClientsDetail = async (req: Request, res: Response) => {
+  try {
+    const {
+      page = '1',
+      limit = '20',
+      q,
+      platform,
+      isActive,
+      apiKeyId,
+      startDate,
+      endDate,
+      period = '30',
+    } = req.query as any;
+
+    const pageNum = Math.max(1, Number(page) || 1);
+    const limitNum = Math.min(100, Math.max(1, Number(limit) || 20));
+
+    const now = new Date();
+    const rangeEnd = (() => {
+      const d = endDate ? new Date(endDate) : now;
+      return Number.isNaN(d.getTime()) ? null : d;
+    })();
+    const rangeStart = (() => {
+      if (startDate) {
+        const d = new Date(startDate);
+        return Number.isNaN(d.getTime()) ? null : d;
+      }
+      const days = Number(period);
+      return new Date(Date.now() - periodToMs(Number.isFinite(days) ? days : 30));
+    })();
+
+    if (!rangeStart || !rangeEnd) {
+      res.status(400).json({ success: false, message: '日期参数不正确', code: 'INVALID_DATE' });
+      return;
+    }
+
+    const keyword = String(q || '').trim();
+    const where: any = {};
+    if (keyword) {
+      where.OR = [
+        { clientId: { contains: keyword, mode: 'insensitive' } },
+        { name: { contains: keyword, mode: 'insensitive' } },
+      ];
+    }
+    if (platform) where.platform = String(platform);
+    if (isActive !== undefined && isActive !== '') {
+      where.isActive = isActive === true || String(isActive).toLowerCase() === 'true';
+    }
+    if (apiKeyId) where.apiKeyId = Number(apiKeyId);
+
+    const reqMeta = {
+      method: req.method,
+      path: (req as any).originalUrl || req.url,
+      userId: (req as any).user?.userId,
+      ip: (req.headers['x-forwarded-for'] as string) || (req as any).ip,
+      filters: {
+        q: keyword || undefined,
+        platform: platform || undefined,
+        isActive: where.isActive,
+        apiKeyId: apiKeyId ? Number(apiKeyId) : undefined,
+        startDate: rangeStart.toISOString(),
+        endDate: rangeEnd.toISOString(),
+      },
+      page: pageNum,
+      limit: limitNum,
+    };
+    const t0 = Date.now();
+    logger.info('Usage getClientsDetail: start', reqMeta);
+
+    const [total, clients] = await Promise.all([
+      prisma.clientApp.count({ where }),
+      prisma.clientApp.findMany({
+        where,
+        orderBy: { lastActiveAt: 'desc' },
+        skip: (pageNum - 1) * limitNum,
+        take: limitNum,
+      }),
+    ]);
+
+    const clientIds = clients.map((c) => c.clientId).filter(Boolean);
+
+    const empty = Promise.resolve([] as any[]);
+    const baseWhere = clientIds.length
+      ? { clientId: { in: clientIds }, createdAt: { gte: rangeStart, lte: rangeEnd } }
+      : null;
+
+    const [statsRaw, errorsRaw] = await Promise.all([
+      baseWhere
+        ? prisma.apiCallLog.groupBy({
+            by: ['clientId'],
+            where: baseWhere,
+            _count: { _all: true },
+            _avg: { responseTimeMs: true },
+            _sum: { tokensUsed: true, cost: true },
+            _max: { createdAt: true },
+          })
+        : empty,
+      baseWhere
+        ? prisma.apiCallLog.groupBy({
+            by: ['clientId'],
+            where: { ...baseWhere, status: { not: 'success' } },
+            _count: { _all: true },
+          })
+        : empty,
+    ]);
+
+    const statsMap = new Map(statsRaw.map((s) => [s.clientId, s] as const));
+    const errMap = new Map(errorsRaw.map((s) => [s.clientId, s] as const));
+
+    const data = clients.map((c) => {
+      const s = statsMap.get(c.clientId);
+      const e = errMap.get(c.clientId);
+      const periodRequests = s?._count?._all ? Number(s._count._all) : 0;
+      const periodErrors = e?._count?._all ? Number(e._count._all) : 0;
+      const periodErrorRate = periodRequests ? Math.round((periodErrors / periodRequests) * 100) : 0;
+      const periodAvgResponseTime = s?._avg?.responseTimeMs != null ? Math.round(Number(s._avg.responseTimeMs) || 0) : 0;
+      const periodTokens = s?._sum?.tokensUsed != null ? Number(s._sum.tokensUsed) : 0;
+      const periodCost = s?._sum?.cost != null ? Number(s._sum.cost) : 0;
+      const periodLastSeen = s?._max?.createdAt || null;
+
+      return {
+        id: c.id,
+        clientId: c.clientId,
+        name: c.name,
+        description: c.description,
+        platform: c.platform,
+        version: c.version,
+        appVersion: c.appVersion,
+        buildTime: c.buildTime,
+        language: c.language,
+        timezone: c.timezone,
+        userAgent: c.userAgent,
+        screenInfo: c.screenInfo,
+        deviceInfo: c.deviceInfo,
+        networkInfo: c.networkInfo,
+        isActive: c.isActive,
+        apiKeyId: c.apiKeyId,
+        owner: c.owner,
+        contactEmail: c.contactEmail,
+        firstSeen: c.firstSeen,
+        lastActiveAt: c.lastActiveAt,
+        createdAt: c.createdAt,
+        updatedAt: c.updatedAt,
+        totalRequests: c.totalRequests,
+        totalTokens: safeBigIntToString(c.totalTokens),
+        totalCost: c.totalCost != null ? Number(c.totalCost) : 0,
+        periodRequests,
+        periodErrors,
+        periodErrorRate,
+        periodAvgResponseTime,
+        periodTokens,
+        periodCost,
+        periodLastSeen,
+      };
+    });
+
+    const totalPages = Math.ceil(total / limitNum);
+
+    logger.info('Usage getClientsDetail: success', { ...reqMeta, returned: data.length, total, durationMs: Date.now() - t0 });
+    res.json({
+      success: true,
+      message: '获取客户端信息成功',
+      data,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages,
+        hasNext: pageNum < totalPages,
+        hasPrev: pageNum > 1,
+      },
+    });
+  } catch (error) {
+    logger.error('获取客户端信息失败', { error });
+    throw createError('获取客户端信息失败', 500);
   }
 };
 

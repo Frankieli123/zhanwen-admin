@@ -186,13 +186,21 @@ export const deleteAIProvider = (id: number) => {
   })
 }
 
+export interface ModelInfo {
+  id: string
+  name?: string
+  type?: string
+  description?: string
+  contextWindow?: number
+}
+
 // 拉取指定服务商的模型列表
 export const fetchProviderModels = (data: {
   provider: string
   apiKey: string
   apiUrl?: string
 }) => {
-  return request.post<string[]>({
+  return request.post<ModelInfo[]>({
     url: '/api/ai-models/fetch-models',
     data
   })

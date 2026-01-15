@@ -1,5 +1,6 @@
 import { logger } from '@/utils/logger';
 import { createError } from '@/middleware/error.middleware';
+import { buildGeminiModelsUrl } from '@/utils/aiApiUrl';
 
 export interface ModelInfo {
   id: string;
@@ -35,6 +36,8 @@ export class ModelFetcherService {
           return await this.fetchDeepSeekModels(apiKey, apiUrl);
         case 'anthropic':
           return await this.fetchAnthropicModels(apiKey, apiUrl);
+        case 'gemini':
+          return await this.fetchGeminiModels(apiKey, apiUrl);
         case 'ai-wave':
           // AI-WAVE 为 OpenAI 兼容接口
           return await this.fetchOpenAIModels(apiKey, apiUrl);
@@ -194,6 +197,59 @@ export class ModelFetcherService {
     ];
 
     return knownModels;
+  }
+
+  /**
+   * 拉取 Gemini 模型列表
+   */
+  private static async fetchGeminiModels(apiKey: string, customApiUrl?: string): Promise<ModelInfo[]> {
+    const baseUrl = customApiUrl || 'https://generativelanguage.googleapis.com';
+    const url = buildGeminiModelsUrl(baseUrl);
+
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'x-goog-api-key': apiKey,
+          'Accept': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        logger.error('Gemini API调用失败', {
+          status: response.status,
+          statusText: response.statusText,
+          url,
+          errorText,
+        });
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json() as any;
+      const models = Array.isArray(data?.models) ? data.models : [];
+
+      return models
+        .filter((m: any) => m && (m.name || m.id))
+        .filter((m: any) => {
+          const methods = m?.supportedGenerationMethods;
+          return Array.isArray(methods) ? methods.includes('generateContent') : true;
+        })
+        .map((m: any) => {
+          const raw = String(m.name || m.id);
+          const id = raw.toLowerCase().startsWith('models/') ? raw.slice('models/'.length) : raw;
+          return {
+            id,
+            name: id,
+            description: (m.displayName || m.description || undefined) as any,
+            type: 'chat',
+          } as ModelInfo;
+        })
+        .sort((a: ModelInfo, b: ModelInfo) => a.name.localeCompare(b.name));
+    } catch (error) {
+      logger.error('拉取Gemini模型失败', error);
+      throw createError('拉取Gemini模型失败，请检查API密钥和网络连接', 500);
+    }
   }
 
   /**

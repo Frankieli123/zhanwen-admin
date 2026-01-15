@@ -10,6 +10,78 @@ const router = Router();
 // 管理端路由：需要管理员 JWT
 router.use(authenticateToken);
 
+// 创建三段文本（允许可选 version 与 isActive，texts 三段必填）
+router.post(
+  '/prompt-texts',
+  requirePermission('prompts:create'),
+  validate({
+    body: Joi.object({
+      name: Joi.string().trim().min(1).max(100).required(),
+      version: Joi.string().trim().min(1).max(50).default('1'),
+      isActive: Joi.boolean().default(false),
+      texts: Joi.object({
+        system_prompt: Joi.string().allow('').max(1000).required(),
+        user_intro: Joi.string().allow('').max(4000).required(),
+        user_guidelines: Joi.string().allow('').max(4000).required(),
+      }).required(),
+    }).required(),
+  }),
+  async (req, res) => {
+    const { name, version, isActive, texts } = req.body as any;
+
+    try {
+      const created = await prisma.promptText.create({
+        data: {
+          name: String(name).trim(),
+          version: String(version).trim(),
+          isActive: typeof isActive === 'boolean' ? isActive : false,
+          texts,
+          metadata: {},
+        },
+        select: {
+          id: true,
+          name: true,
+          version: true,
+          isActive: true,
+          texts: true,
+          createdAt: true,
+          updatedAt: true,
+          metadata: true,
+        },
+      });
+
+      const data = {
+        id: created.id,
+        name: created.name,
+        version: String(created.version),
+        active: !!created.isActive,
+        texts: {
+          system_prompt: (created as any).texts?.system_prompt ?? '',
+          user_intro: (created as any).texts?.user_intro ?? '',
+          user_guidelines: (created as any).texts?.user_guidelines ?? '',
+        },
+        createdAt: created.createdAt.toISOString(),
+        lastUsedAt:
+          (created as any)?.metadata?.lastUsedAt
+            ? new Date((created as any).metadata.lastUsedAt).toISOString()
+            : undefined,
+        updatedAt: created.updatedAt.toISOString(),
+      };
+
+      const response: ApiResponse = { success: true, message: '创建成功', data };
+      res.status(201).json(response);
+    } catch (e: any) {
+      if (e?.code === 'P2002') {
+        res
+          .status(409)
+          .json({ success: false, message: '名称与版本已存在，请更换', code: 'PROMPT_TEXTS_DUPLICATE' });
+        return;
+      }
+      throw e;
+    }
+  }
+);
+
 // 更新三段文本（允许可选修改 name 与 version）
 router.put(
   '/prompt-texts/:id',
@@ -22,7 +94,7 @@ router.put(
       isActive: Joi.boolean().optional(),
       texts: Joi.object({
         system_prompt: Joi.string().allow('').max(1000).required(),
-        user_intro: Joi.string().allow('').max(200).required(),
+        user_intro: Joi.string().allow('').max(4000).required(),
         user_guidelines: Joi.string().allow('').max(4000).required(),
       }).optional(),
     })

@@ -16,7 +16,7 @@ nixPkgs = ["nodejs_20"]
 cmds = [
   "npm install",
   "cd backend && npm install",
-  "cd frontend && npm install"
+  "cd zhanwen-admin-vue && npm install"
 ]
 
 [phases.build]
@@ -24,4 +24,4 @@ cmds = [
 cmds = []
 
 [start]
-cmd = "./start-dev.sh"
+cmd = "npm run dev"

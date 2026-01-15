@@ -14,7 +14,7 @@
 
 #### 后端API服务
 - ✅ Express.js服务器配置完成
-- ✅ SQLite数据库集成
+- ✅ PostgreSQL + Prisma 数据库集成
 - ✅ JWT认证中间件
 - ✅ CORS跨域配置
 - ✅ Helmet安全中间件
@@ -25,12 +25,11 @@
 - ✅ 开发环境IP调试端点 (/debug/ip)
 
 #### 前端管理界面
-- ✅ Refine管理框架集成
-- ✅ Ant Design UI组件库
+- ✅ Vue 3 管理端（Art Design Pro 模板）
+- ✅ Element Plus + Pinia + Vue Router
 - ✅ 中文本地化配置 (zhCN)
 - ✅ 响应式布局设计
 - ✅ 主题配置
-- ✅ React Router路由配置
 
 #### 部署配置
 - ✅ Docker容器化配置
@@ -92,18 +91,18 @@
 
 ### 前端技术栈
 ```
-React 18 + TypeScript
-├── Refine 4.x (管理框架)
-├── Ant Design 5.x (UI组件)
-├── React Router v6 (路由)
+Vue 3 + TypeScript
+├── Element Plus (UI组件)
+├── Pinia (状态管理)
+├── Vue Router (路由)
 ├── Vite (构建工具)
-└── CSS (样式)
+└── Art Design Pro Template
 ```
 
 ### 后端技术栈
 ```
 Node.js + Express.js + TypeScript
-├── SQLite + better-sqlite3 (数据库)
+├── PostgreSQL + Prisma (数据库)
 ├── JWT (认证)
 ├── Swagger (API文档)
 ├── express-rate-limit (限流)
@@ -123,9 +122,9 @@ Coolify (自托管平台)
 ## 📋 API接口清单
 
 ### 认证相关
-- `POST /api/auth/login` - 用户登录
-- `POST /api/auth/logout` - 用户登出  
-- `GET /api/auth/me` - 获取当前用户信息
+- `POST /auth/login` - 用户登录
+- `POST /auth/logout` - 用户登出  
+- `GET /auth/me` - 获取当前用户信息
 
 ### 系统相关
 - `GET /health` - 健康检查
@@ -163,7 +162,7 @@ Coolify (自托管平台)
 cd backend && npm run dev
 
 # 前端  
-cd frontend && npm run dev
+cd zhanwen-admin-vue && npm run dev
 ```
 
 ### 生产环境构建
@@ -172,7 +171,7 @@ cd frontend && npm run dev
 cd backend && npm run build
 
 # 前端
-cd frontend && npm run build
+cd zhanwen-admin-vue && npm run build
 ```
 
 ### 常用调试命令

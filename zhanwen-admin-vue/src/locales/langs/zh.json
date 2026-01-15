@@ -212,6 +212,18 @@
       "analysis": "分析页",
       "ecommerce": "电子商务"
     },
+    "statistics": {
+      "title": "统计",
+      "usage": "调用统计",
+      "endpoints": "端点分析",
+      "errors": "错误分析",
+      "performance": "性能监控",
+      "geo": "地域分布",
+      "devices": "设备分布",
+      "models": "模型统计",
+      "clientMetrics": "客户端指标",
+      "clients": "客户端信息"
+    },
     "widgets": {
       "title": "组件中心",
       "iconList": "Icon 图标",

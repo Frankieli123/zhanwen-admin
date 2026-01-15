@@ -14,7 +14,7 @@
     "start:frontend": "cd zhanwen-admin-vue && npm run serve",
     "start": "npm run start:backend",
     "dev:backend": "cd backend && npm run dev",
-    "dev:frontend": "cd frontend && npm run dev",
+    "dev:frontend": "cd zhanwen-admin-vue && npm run dev",
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "migrate": "cd backend && npm run migrate",
     "docker:build": "docker-compose build",
