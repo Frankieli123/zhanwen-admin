@@ -1341,6 +1341,66 @@ router.post(
     const reportPlatform =
       String(platform || (req.headers['x-client-platform'] as string) || '').trim() || 'unknown';
 
+    // 同步更新客户端画像（ClientApp），让管理端“客户端信息”页能看到设备/屏幕/网络信息
+    // 注意：这里的 clientInfo 来自 metrics item（客户端 telemetry 上报），不是调用日志
+    try {
+      const firstMetric: any = Array.isArray(metrics) && metrics.length > 0 ? metrics[0] : null;
+      const effectiveClientId = String(clientId || firstMetric?.metadata?.clientId || '').trim();
+      const clientInfoRaw = firstMetric?.clientInfo;
+      const clientInfo =
+        clientInfoRaw && typeof clientInfoRaw === 'object' && !Array.isArray(clientInfoRaw) ? clientInfoRaw : null;
+
+      if (effectiveClientId && clientInfo) {
+        const updateData: any = {
+          lastActiveAt: new Date(),
+        };
+
+        // 基础信息
+        if (clientInfo.userAgent) updateData.userAgent = clientInfo.userAgent;
+        if (clientInfo.language) updateData.language = clientInfo.language;
+        if (clientInfo.timezone) updateData.timezone = clientInfo.timezone;
+        if (clientInfo.appVersion) updateData.appVersion = clientInfo.appVersion;
+        if (clientInfo.buildTime) updateData.buildTime = new Date(clientInfo.buildTime);
+
+        // 设备/屏幕/网络信息
+        if (clientInfo.screen) updateData.screenInfo = clientInfo.screen;
+        if (clientInfo.deviceMemory || clientInfo.hardwareConcurrency) {
+          updateData.deviceInfo = {
+            deviceMemory: clientInfo.deviceMemory,
+            hardwareConcurrency: clientInfo.hardwareConcurrency
+          };
+        }
+        if (clientInfo.connection) updateData.networkInfo = clientInfo.connection;
+
+        await prisma.clientApp.upsert({
+          where: { clientId: effectiveClientId },
+          update: updateData,
+          create: {
+            clientId: effectiveClientId,
+            name: `自动创建-${effectiveClientId}`,
+            platform: String(clientInfo.platform || reportPlatform || 'unknown'),
+            userAgent: clientInfo.userAgent,
+            language: clientInfo.language,
+            timezone: clientInfo.timezone,
+            screenInfo: clientInfo.screen || {},
+            deviceInfo: {
+              deviceMemory: clientInfo.deviceMemory,
+              hardwareConcurrency: clientInfo.hardwareConcurrency
+            },
+            networkInfo: clientInfo.connection || {},
+            appVersion: clientInfo.appVersion,
+            buildTime: clientInfo.buildTime ? new Date(clientInfo.buildTime) : null,
+            lastActiveAt: new Date(),
+            totalRequests: 0,
+            totalTokens: BigInt(0),
+            totalCost: 0,
+          },
+        });
+      }
+    } catch (e) {
+      logger.warn('Usage metrics: upsert client failed', e);
+    }
+
     const metricsData = metrics.map((metric: any) => ({
       date: reportDate,
       platform: reportPlatform,
