@@ -293,6 +293,7 @@ router.post(
             ip: ip || undefined,
             userAgent: userAgent || undefined,
             apiKeyId: apiKeyId || undefined,
+            tokensEstimated: out.tokensEstimated ? true : undefined,
           },
           clientInfo: {
             userAgent: userAgent || undefined,

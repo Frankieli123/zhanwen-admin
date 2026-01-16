@@ -32,9 +32,47 @@ export interface DivinationReadingResult {
   modelName: string;
   providerName: string;
   tokensUsed?: number;
+  tokensEstimated?: boolean;
   cost?: number;
   responseTimeMs: number;
   requestId?: string;
+}
+
+function estimateTokensFromText(text: string): number {
+  const s = typeof text === 'string' ? text.trim() : '';
+  if (!s) return 0;
+  let ascii = 0;
+  let cjk = 0;
+  let other = 0;
+
+  for (const ch of s) {
+    const code = ch.codePointAt(0) ?? 0;
+    if (code <= 0x7f) {
+      ascii += 1;
+      continue;
+    }
+    const isCjk =
+      (code >= 0x4e00 && code <= 0x9fff) ||
+      (code >= 0x3400 && code <= 0x4dbf) ||
+      (code >= 0x20000 && code <= 0x2a6df) ||
+      (code >= 0x2a700 && code <= 0x2b73f) ||
+      (code >= 0x2b740 && code <= 0x2b81f) ||
+      (code >= 0x2b820 && code <= 0x2ceaf) ||
+      (code >= 0xf900 && code <= 0xfaff) ||
+      (code >= 0x2f800 && code <= 0x2fa1f);
+    if (isCjk) cjk += 1;
+    else other += 1;
+  }
+
+  const est = Math.ceil(cjk + ascii / 4 + other / 2);
+  return Math.max(1, est);
+}
+
+function estimateTotalTokens(inputText: string, outputText: string): number | undefined {
+  const inT = estimateTokensFromText(inputText);
+  const outT = estimateTokensFromText(outputText);
+  const total = (inT || 0) + (outT || 0);
+  return total > 0 ? total : undefined;
 }
 
 function convertElementToChinese(element: string): string {
@@ -319,10 +357,15 @@ export class AIChatService {
           const usage = data?.usage || {};
           const inputTokens = typeof usage?.input_tokens === 'number' ? usage.input_tokens : undefined;
           const outputTokens = typeof usage?.output_tokens === 'number' ? usage.output_tokens : undefined;
-          const tokensUsed =
+          let tokensUsed =
             typeof inputTokens === 'number' && typeof outputTokens === 'number'
               ? inputTokens + outputTokens
               : undefined;
+          const tokensEstimated = tokensUsed == null;
+          if (tokensUsed == null) {
+            const inputText = [systemPrompt, userPromptFinal].filter(Boolean).join('\n\n');
+            tokensUsed = estimateTotalTokens(inputText, reading) ?? undefined;
+          }
 
           const responseTimeMs = Date.now() - start;
           let cost: number | undefined;
@@ -345,6 +388,7 @@ export class AIChatService {
             modelName: model.name,
             providerName: provider?.name || 'unknown',
             tokensUsed,
+            tokensEstimated,
             cost,
             responseTimeMs,
             requestId: data?.id,
@@ -388,7 +432,12 @@ export class AIChatService {
           }
 
           const usage = data?.usageMetadata || {};
-          const tokensUsed = typeof usage?.totalTokenCount === 'number' ? usage.totalTokenCount : undefined;
+          let tokensUsed = typeof usage?.totalTokenCount === 'number' ? usage.totalTokenCount : undefined;
+          const tokensEstimated = tokensUsed == null;
+          if (tokensUsed == null) {
+            const combinedPrompt = systemPrompt ? `${systemPrompt}\n\n${userPromptFinal}` : userPromptFinal;
+            tokensUsed = estimateTotalTokens(combinedPrompt, reading) ?? undefined;
+          }
 
           const responseTimeMs = Date.now() - start;
           let cost: number | undefined;
@@ -411,6 +460,7 @@ export class AIChatService {
             modelName: model.name,
             providerName: provider?.name || 'unknown',
             tokensUsed,
+            tokensEstimated,
             cost,
             responseTimeMs,
             requestId: undefined,
@@ -439,7 +489,14 @@ export class AIChatService {
         }
 
         const usage = data?.usage || {};
-        const tokensUsed = usage?.total_tokens || (usage?.prompt_tokens && usage?.completion_tokens ? usage.prompt_tokens + usage.completion_tokens : undefined);
+        let tokensUsed =
+          usage?.total_tokens ||
+          (usage?.prompt_tokens && usage?.completion_tokens ? usage.prompt_tokens + usage.completion_tokens : undefined);
+        const tokensEstimated = tokensUsed == null;
+        if (tokensUsed == null) {
+          const inputText = [systemPrompt, userPromptFinal].filter(Boolean).join('\n\n');
+          tokensUsed = estimateTotalTokens(inputText, reading) ?? undefined;
+        }
         const responseTimeMs = Date.now() - start;
         let cost: number | undefined;
         try {
@@ -461,6 +518,7 @@ export class AIChatService {
           modelName: model.name,
           providerName: provider?.name || 'unknown',
           tokensUsed,
+          tokensEstimated,
           cost,
           responseTimeMs,
           requestId: data?.id,

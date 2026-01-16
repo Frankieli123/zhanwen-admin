@@ -334,6 +334,19 @@ export function useChart(options: UseChartOptions = {}) {
     }
     if (chart && !isDestroyed) {
       chart.setOption(options)
+      try {
+        const dom = chart.getDom() as HTMLElement
+        const rect = dom.getBoundingClientRect()
+        const w = rect.width
+        const h = rect.height
+        if (w > 0 && h > 0) {
+          const cw = chart.getWidth()
+          const ch = chart.getHeight()
+          if (Math.abs(cw - w) > 1 || Math.abs(ch - h) > 1) {
+            chart.resize()
+          }
+        }
+      } catch (_) {}
       pendingOptions = null
     }
   }

@@ -354,6 +354,10 @@
     background-color: var(--art-main-bg-color);
     border-radius: calc(var(--custom-radius) / 2 + 2px);
 
+    :deep(.el-input-number .el-input__inner) {
+      text-align: left;
+    }
+
     .search-form-row {
       display: flex;
       flex-wrap: wrap;

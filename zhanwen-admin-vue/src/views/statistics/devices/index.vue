@@ -93,7 +93,7 @@
     },
     {
       key: 'apiKeyId',
-      label: 'API Key ID',
+      label: '密钥ID',
       type: 'number',
       props: { placeholder: '可选', min: 1, controls: false }
     }
@@ -189,4 +189,3 @@
     justify-content: center;
   }
 </style>
-
