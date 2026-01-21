@@ -2,6 +2,7 @@
 import { prisma } from '@/lib/prisma';
 import { createError } from '@/middleware/error.middleware';
 import { logger } from '@/utils/logger';
+import { geoFromIp } from '@/utils/ip-geo';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const PDFDocument = require('pdfkit');
 
@@ -756,12 +757,27 @@ export const getGeoAnalysis = async (req: Request, res: Response) => {
     });
 
     const map: Record<string, number> = {};
+    const ipCache = new Map<string, string>();
     for (const l of logs) {
       const meta = (l as any).metadata || {};
-      const raw = getFromMeta(meta, ['country', 'countryCode', 'region', 'city', 'location'], 'Unknown');
+      const raw = getFromMeta(meta, ['location', 'country', 'countryCode', 'region', 'city'], 'Unknown');
       const locStr = String(raw ?? '').trim();
-      // 统一规范化占位符（例如 Unknown1/unknown/N/A/null 等）
-      const normalized = /^(unknown|n\/a|null|undefined|unknown\d*)$/i.test(locStr) ? 'Unknown' : locStr;
+      let normalized = /^(unknown|n\/a|null|undefined|unknown\d*)$/i.test(locStr) ? 'Unknown' : locStr;
+
+      if (normalized === 'Unknown') {
+        const ipRaw = getFromMeta(meta, ['ip'], undefined);
+        const ipKey = ipRaw != null ? String(ipRaw).trim() : '';
+        if (ipKey) {
+          let loc = ipCache.get(ipKey);
+          if (!loc) {
+            const geo = geoFromIp(ipKey);
+            loc = geo?.location || geo?.country || geo?.countryCode || 'Unknown';
+            ipCache.set(ipKey, loc);
+          }
+          normalized = loc;
+        }
+      }
+
       map[normalized] = (map[normalized] || 0) + 1;
     }
 

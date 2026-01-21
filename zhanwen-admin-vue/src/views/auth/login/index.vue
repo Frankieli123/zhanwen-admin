@@ -43,18 +43,6 @@
             @keyup.enter="handleSubmit"
             style="margin-top: 25px"
           >
-            <ElFormItem prop="account">
-              <ElSelect v-model="formData.account" @change="setupAccount" class="account-select">
-                <ElOption
-                  v-for="account in accounts"
-                  :key="account.key"
-                  :label="account.label"
-                  :value="account.key"
-                >
-                  <span>{{ account.label }}</span>
-                </ElOption>
-              </ElSelect>
-            </ElFormItem>
             <ElFormItem prop="username">
               <ElInput :placeholder="$t('login.placeholder[0]')" v-model.trim="formData.username" />
             </ElFormItem>
@@ -137,41 +125,6 @@
   import { useSettingStore } from '@/store/modules/setting'
   import type { FormInstance, FormRules } from 'element-plus'
 
-  type AccountKey = 'super' | 'admin' | 'user'
-
-  export interface Account {
-    key: AccountKey
-    label: string
-    userName: string
-    password: string
-    roles: string[]
-  }
-
-  const accounts = computed<Account[]>(() => [
-    {
-      key: 'super',
-      label: t('login.roles.super'),
-      // 与后端种子数据保持一致
-      userName: 'admin',
-      password: 'admin123456',
-      roles: ['R_SUPER']
-    },
-    {
-      key: 'admin',
-      label: t('login.roles.admin'),
-      userName: 'admin',
-      password: 'admin123456',
-      roles: ['R_ADMIN']
-    },
-    {
-      key: 'user',
-      label: t('login.roles.user'),
-      userName: 'admin',
-      password: 'admin123456',
-      roles: ['R_USER']
-    }
-  ])
-
   const settingStore = useSettingStore()
   const { isDark } = storeToRefs(settingStore)
 
@@ -186,7 +139,6 @@
   const formRef = ref<FormInstance>()
 
   const formData = reactive({
-    account: '',
     username: '',
     password: '',
     rememberPassword: true
@@ -198,19 +150,6 @@
   }))
 
   const loading = ref(false)
-
-  onMounted(() => {
-    // 默认选择与后端种子一致的管理员账号
-    setupAccount('admin')
-  })
-
-  // 设置账号
-  const setupAccount = (key: AccountKey) => {
-    const selectedAccount = accounts.value.find((account: Account) => account.key === key)
-    formData.account = key
-    formData.username = selectedAccount?.userName ?? ''
-    formData.password = selectedAccount?.password ?? ''
-  }
 
   // 登录
   const handleSubmit = async () => {

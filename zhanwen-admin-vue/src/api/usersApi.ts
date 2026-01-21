@@ -36,6 +36,19 @@ export class UserService {
     })
   }
 
+  // 修改密码
+  static changePassword(data: {
+    currentPassword: string
+    newPassword: string
+    confirmPassword: string
+  }) {
+    return request.put({
+      baseURL: '',
+      url: '/auth/change-password',
+      data
+    })
+  }
+
   // 获取用户列表
   static getUserList(params: Api.Common.PaginatingSearchParams) {
     return request.get<Api.User.UserListData>({

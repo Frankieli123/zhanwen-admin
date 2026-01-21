@@ -10,6 +10,7 @@ import Handlebars from 'handlebars';
 import crypto from 'crypto';
 import { AIChatService } from '@/services/ai-chat.service';
 import { buildModelInvokeApiUrl } from '@/utils/aiApiUrl';
+import { geoFromIp } from '@/utils/ip-geo';
 
 const router = Router();
 
@@ -255,6 +256,7 @@ router.post(
               ip: ip || undefined,
               userAgent: userAgent || undefined,
               apiKeyId: apiKeyId || undefined,
+              ...(geoFromIp(ip) || {}),
             },
             clientInfo: {
               userAgent: userAgent || undefined,
@@ -294,6 +296,7 @@ router.post(
             userAgent: userAgent || undefined,
             apiKeyId: apiKeyId || undefined,
             tokensEstimated: out.tokensEstimated ? true : undefined,
+            ...(geoFromIp(ip) || {}),
           },
           clientInfo: {
             userAgent: userAgent || undefined,
@@ -1189,6 +1192,15 @@ router.post(
     const clientInfo =
       clientInfoRaw && typeof clientInfoRaw === 'object' && !Array.isArray(clientInfoRaw) ? clientInfoRaw : {};
 
+    const pickHeader = (v: unknown): string | undefined => {
+      if (typeof v === 'string') return v;
+      if (Array.isArray(v) && typeof v[0] === 'string') return v[0];
+      return undefined;
+    };
+    const reqIp = (pickHeader(req.headers['x-forwarded-for']) || (req as any).ip || '').toString().split(',')[0].trim();
+    if (reqIp && (metadata as any).ip == null) (metadata as any).ip = reqIp;
+    Object.assign(metadata as any, geoFromIp((metadata as any).ip) || {});
+
     // 如果提供了clientId，更新客户端活跃时间和统计
     if (clientId) {
       const updateData: any = {
@@ -1485,6 +1497,13 @@ router.post(
     // 批量处理API调用日志
     if (logs.length > 0) {
       try {
+        const pickHeader = (v: unknown): string | undefined => {
+          if (typeof v === 'string') return v;
+          if (Array.isArray(v) && typeof v[0] === 'string') return v[0];
+          return undefined;
+        };
+        const reqIp = (pickHeader(req.headers['x-forwarded-for']) || (req as any).ip || '').toString().split(',')[0].trim();
+
         // 先处理客户端信息更新
         for (const log of logs) {
           if (log.clientId && log.clientInfo) {
@@ -1550,7 +1569,11 @@ router.post(
           responseTimeMs: log.responseTimeMs ? parseInt(log.responseTimeMs) : null,
           status: log.status,
           errorMessage: log.errorMessage,
-          metadata: log.metadata || {},
+          metadata: (() => {
+            const meta = log.metadata && typeof log.metadata === 'object' && !Array.isArray(log.metadata) ? log.metadata : {};
+            if (reqIp && meta.ip == null) meta.ip = reqIp;
+            return { ...meta, ...(geoFromIp(meta.ip) || {}) };
+          })(),
           clientInfo: log.clientInfo || {},
           timestamp: log.timestamp ? new Date(log.timestamp) : null,
         }));
