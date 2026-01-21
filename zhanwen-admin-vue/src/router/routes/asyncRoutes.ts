@@ -25,6 +25,30 @@ export const asyncRoutes: AppRouteRecord[] = [
     ]
   },
   {
+    path: '/system',
+    name: 'SystemHidden',
+    component: RoutesAlias.Layout,
+    meta: {
+      title: '系统',
+      icon: '&#xe7b6;',
+      isHide: true,
+      roles: ['R_SUPER', 'R_ADMIN']
+    },
+    children: [
+      {
+        path: 'user-center',
+        name: 'UserCenter',
+        component: () => import('@/views/system/user-center/index.vue'),
+        meta: {
+          title: '个人中心',
+          keepAlive: false,
+          isHide: true,
+          roles: ['R_SUPER', 'R_ADMIN']
+        }
+      }
+    ]
+  },
+  {
     path: '/statistics',
     name: 'Statistics',
     component: RoutesAlias.Layout,
