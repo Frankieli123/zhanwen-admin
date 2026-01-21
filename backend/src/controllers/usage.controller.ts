@@ -803,15 +803,21 @@ export const getDeviceAnalysis = async (req: Request, res: Response) => {
 
     const logs = await prisma.apiCallLog.findMany({
       where,
-      select: { metadata: true },
+      select: { metadata: true, clientInfo: true },
       take: 5000,
       orderBy: { createdAt: 'desc' },
     });
 
     const counts = { desktop: 0, mobile: 0, tablet: 0, other: 0 };
     for (const l of logs) {
-      const ua = getFromMeta((l as any).metadata, ['userAgent', 'ua']);
-      const d = deviceFromUA(ua);
+      const meta = (l as any).metadata;
+      const ci = (l as any).clientInfo;
+      const deviceTypeRaw = getFromMeta(ci, ['deviceType']);
+      const deviceType = typeof deviceTypeRaw === 'string' ? deviceTypeRaw : '';
+      const ua = getFromMeta(meta, ['userAgent', 'ua']) || getFromMeta(ci, ['userAgent', 'ua']);
+      const d = (['desktop', 'mobile', 'tablet', 'other'] as const).includes(deviceType as any)
+        ? (deviceType as any)
+        : deviceFromUA(ua);
       (counts as any)[d] += 1;
     }
 

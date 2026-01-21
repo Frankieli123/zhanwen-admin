@@ -14,6 +14,87 @@ import { geoFromIp } from '@/utils/ip-geo';
 
 const router = Router();
 
+const isPlainObject = (v: unknown): v is Record<string, any> =>
+  !!v && typeof v === 'object' && !Array.isArray(v);
+
+const parseOptionalDate = (v: unknown): Date | undefined => {
+  if (v == null) return undefined;
+  const d = new Date(v as any);
+  if (Number.isNaN(d.getTime())) return undefined;
+  return d;
+};
+
+const parseUserAgentSummary = (uaRaw: unknown) => {
+  const ua = typeof uaRaw === 'string' ? uaRaw.trim() : '';
+  if (!ua) return undefined;
+
+  const lower = ua.toLowerCase();
+
+  const pickVersion = (re: RegExp): string | undefined => {
+    const m = ua.match(re);
+    return m && m[1] ? String(m[1]) : undefined;
+  };
+
+  let browserName = 'Unknown';
+  let browserVersion: string | undefined;
+  if (lower.includes('edg/')) {
+    browserName = 'Edge';
+    browserVersion = pickVersion(/Edg\/([\d.]+)/);
+  } else if (lower.includes('opr/')) {
+    browserName = 'Opera';
+    browserVersion = pickVersion(/OPR\/([\d.]+)/);
+  } else if (lower.includes('chrome/')) {
+    browserName = 'Chrome';
+    browserVersion = pickVersion(/Chrome\/([\d.]+)/);
+  } else if (lower.includes('firefox/')) {
+    browserName = 'Firefox';
+    browserVersion = pickVersion(/Firefox\/([\d.]+)/);
+  } else if (lower.includes('safari/') && lower.includes('version/')) {
+    browserName = 'Safari';
+    browserVersion = pickVersion(/Version\/([\d.]+)/);
+  }
+
+  let osName = 'Unknown';
+  let osVersion: string | undefined;
+  if (lower.includes('android')) {
+    osName = 'Android';
+    osVersion = pickVersion(/Android ([\d.]+)/);
+  } else if (lower.includes('iphone') || lower.includes('ipad') || lower.includes('ipod')) {
+    osName = 'iOS';
+    osVersion = pickVersion(/OS ([\d_]+)/)?.replace(/_/g, '.');
+  } else if (lower.includes('windows')) {
+    osName = 'Windows';
+    osVersion = pickVersion(/Windows NT ([\d.]+)/);
+  } else if (lower.includes('mac os x')) {
+    osName = 'macOS';
+    osVersion = pickVersion(/Mac OS X ([\d_]+)/)?.replace(/_/g, '.');
+  } else if (lower.includes('linux')) {
+    osName = 'Linux';
+  }
+
+  return {
+    browser: { name: browserName, version: browserVersion },
+    os: { name: osName, version: osVersion },
+  };
+};
+
+const buildClientDeviceInfo = (clientInfo: any) => {
+  const deviceInfo: any = {};
+  if (!clientInfo || typeof clientInfo !== 'object') return deviceInfo;
+
+  if (clientInfo.deviceType) deviceInfo.deviceType = clientInfo.deviceType;
+  if (clientInfo.maxTouchPoints != null) deviceInfo.maxTouchPoints = clientInfo.maxTouchPoints;
+  if (clientInfo.deviceMemory != null) deviceInfo.deviceMemory = clientInfo.deviceMemory;
+  if (clientInfo.hardwareConcurrency != null) deviceInfo.hardwareConcurrency = clientInfo.hardwareConcurrency;
+  if (isPlainObject(clientInfo.userAgentData)) deviceInfo.userAgentData = clientInfo.userAgentData;
+  if (isPlainObject(clientInfo.nativeDevice)) deviceInfo.nativeDevice = clientInfo.nativeDevice;
+
+  const uaSummary = parseUserAgentSummary(clientInfo.userAgent);
+  if (uaSummary) deviceInfo.uaSummary = uaSummary;
+
+  return deviceInfo;
+};
+
 // 允许“管理员JWT 或 应用API Key”两种方式访问公开数据
 function authPublicAccess(apiPermission: string) {
   return (req: Request, res: Response, next: any) => {
@@ -1214,16 +1295,17 @@ router.post(
       if (clientInfo.userAgent) updateData.userAgent = clientInfo.userAgent;
       if (clientInfo.language) updateData.language = clientInfo.language;
       if (clientInfo.timezone) updateData.timezone = clientInfo.timezone;
-      if (clientInfo.screen) updateData.screenInfo = clientInfo.screen;
-      if (clientInfo.deviceMemory || clientInfo.hardwareConcurrency) {
-        updateData.deviceInfo = {
-          deviceMemory: clientInfo.deviceMemory,
-          hardwareConcurrency: clientInfo.hardwareConcurrency
-        };
-      }
-      if (clientInfo.connection) updateData.networkInfo = clientInfo.connection;
+      const screenInfo = isPlainObject(clientInfo.screen) ? clientInfo.screen : undefined;
+      const networkInfo = isPlainObject(clientInfo.connection) ? clientInfo.connection : undefined;
+      const deviceInfo = buildClientDeviceInfo(clientInfo);
+      const buildTime = parseOptionalDate(clientInfo.buildTime);
+
+      if (typeof clientInfo.platform === 'string' && clientInfo.platform) updateData.platform = clientInfo.platform;
+      if (screenInfo) updateData.screenInfo = screenInfo;
+      if (Object.keys(deviceInfo).length) updateData.deviceInfo = deviceInfo;
+      if (networkInfo) updateData.networkInfo = networkInfo;
       if (clientInfo.appVersion) updateData.appVersion = clientInfo.appVersion;
-      if (clientInfo.buildTime) updateData.buildTime = new Date(clientInfo.buildTime);
+      if (buildTime) updateData.buildTime = buildTime;
 
       await prisma.clientApp.upsert({
         where: { clientId },
@@ -1235,14 +1317,11 @@ router.post(
           userAgent: clientInfo.userAgent,
           language: clientInfo.language,
           timezone: clientInfo.timezone,
-          screenInfo: clientInfo.screen || {},
-          deviceInfo: {
-            deviceMemory: clientInfo.deviceMemory,
-            hardwareConcurrency: clientInfo.hardwareConcurrency
-          },
-          networkInfo: clientInfo.connection || {},
+          screenInfo: screenInfo || {},
+          deviceInfo: Object.keys(deviceInfo).length ? deviceInfo : {},
+          networkInfo: networkInfo || {},
           appVersion: clientInfo.appVersion,
-          buildTime: clientInfo.buildTime ? new Date(clientInfo.buildTime) : null,
+          buildTime: buildTime || null,
           lastActiveAt: new Date(),
           totalRequests: 1,
           totalTokens: tokensUsed ? BigInt(tokensUsed) : BigInt(0),
@@ -1369,21 +1448,22 @@ router.post(
         };
 
         // 基础信息
+        const screenInfo = isPlainObject(clientInfo.screen) ? clientInfo.screen : undefined;
+        const networkInfo = isPlainObject(clientInfo.connection) ? clientInfo.connection : undefined;
+        const deviceInfo = buildClientDeviceInfo(clientInfo);
+        const buildTime = parseOptionalDate(clientInfo.buildTime);
+
+        if (typeof clientInfo.platform === 'string' && clientInfo.platform) updateData.platform = clientInfo.platform;
         if (clientInfo.userAgent) updateData.userAgent = clientInfo.userAgent;
         if (clientInfo.language) updateData.language = clientInfo.language;
         if (clientInfo.timezone) updateData.timezone = clientInfo.timezone;
         if (clientInfo.appVersion) updateData.appVersion = clientInfo.appVersion;
-        if (clientInfo.buildTime) updateData.buildTime = new Date(clientInfo.buildTime);
+        if (buildTime) updateData.buildTime = buildTime;
 
         // 设备/屏幕/网络信息
-        if (clientInfo.screen) updateData.screenInfo = clientInfo.screen;
-        if (clientInfo.deviceMemory || clientInfo.hardwareConcurrency) {
-          updateData.deviceInfo = {
-            deviceMemory: clientInfo.deviceMemory,
-            hardwareConcurrency: clientInfo.hardwareConcurrency
-          };
-        }
-        if (clientInfo.connection) updateData.networkInfo = clientInfo.connection;
+        if (screenInfo) updateData.screenInfo = screenInfo;
+        if (Object.keys(deviceInfo).length) updateData.deviceInfo = deviceInfo;
+        if (networkInfo) updateData.networkInfo = networkInfo;
 
         await prisma.clientApp.upsert({
           where: { clientId: effectiveClientId },
@@ -1395,14 +1475,11 @@ router.post(
             userAgent: clientInfo.userAgent,
             language: clientInfo.language,
             timezone: clientInfo.timezone,
-            screenInfo: clientInfo.screen || {},
-            deviceInfo: {
-              deviceMemory: clientInfo.deviceMemory,
-              hardwareConcurrency: clientInfo.hardwareConcurrency
-            },
-            networkInfo: clientInfo.connection || {},
+            screenInfo: screenInfo || {},
+            deviceInfo: Object.keys(deviceInfo).length ? deviceInfo : {},
+            networkInfo: networkInfo || {},
             appVersion: clientInfo.appVersion,
-            buildTime: clientInfo.buildTime ? new Date(clientInfo.buildTime) : null,
+            buildTime: buildTime || null,
             lastActiveAt: new Date(),
             totalRequests: 0,
             totalTokens: BigInt(0),
@@ -1518,16 +1595,17 @@ router.post(
             if (log.clientInfo.userAgent) updateData.userAgent = log.clientInfo.userAgent;
             if (log.clientInfo.language) updateData.language = log.clientInfo.language;
             if (log.clientInfo.timezone) updateData.timezone = log.clientInfo.timezone;
-            if (log.clientInfo.screen) updateData.screenInfo = log.clientInfo.screen;
-            if (log.clientInfo.deviceMemory || log.clientInfo.hardwareConcurrency) {
-              updateData.deviceInfo = {
-                deviceMemory: log.clientInfo.deviceMemory,
-                hardwareConcurrency: log.clientInfo.hardwareConcurrency
-              };
-            }
-            if (log.clientInfo.connection) updateData.networkInfo = log.clientInfo.connection;
+            const screenInfo = isPlainObject(log.clientInfo.screen) ? log.clientInfo.screen : undefined;
+            const networkInfo = isPlainObject(log.clientInfo.connection) ? log.clientInfo.connection : undefined;
+            const deviceInfo = buildClientDeviceInfo(log.clientInfo);
+            const buildTime = parseOptionalDate(log.clientInfo.buildTime);
+
+            if (typeof log.clientInfo.platform === 'string' && log.clientInfo.platform) updateData.platform = log.clientInfo.platform;
+            if (screenInfo) updateData.screenInfo = screenInfo;
+            if (Object.keys(deviceInfo).length) updateData.deviceInfo = deviceInfo;
+            if (networkInfo) updateData.networkInfo = networkInfo;
             if (log.clientInfo.appVersion) updateData.appVersion = log.clientInfo.appVersion;
-            if (log.clientInfo.buildTime) updateData.buildTime = new Date(log.clientInfo.buildTime);
+            if (buildTime) updateData.buildTime = buildTime;
 
             await prisma.clientApp.upsert({
               where: { clientId: log.clientId },
@@ -1539,14 +1617,11 @@ router.post(
                 userAgent: log.clientInfo.userAgent,
                 language: log.clientInfo.language,
                 timezone: log.clientInfo.timezone,
-                screenInfo: log.clientInfo.screen || {},
-                deviceInfo: {
-                  deviceMemory: log.clientInfo.deviceMemory,
-                  hardwareConcurrency: log.clientInfo.hardwareConcurrency
-                },
-                networkInfo: log.clientInfo.connection || {},
+                screenInfo: screenInfo || {},
+                deviceInfo: Object.keys(deviceInfo).length ? deviceInfo : {},
+                networkInfo: networkInfo || {},
                 appVersion: log.clientInfo.appVersion,
-                buildTime: log.clientInfo.buildTime ? new Date(log.clientInfo.buildTime) : null,
+                buildTime: buildTime || null,
                 lastActiveAt: new Date(),
                 totalRequests: 1,
                 totalTokens: log.tokensUsed ? BigInt(log.tokensUsed) : BigInt(0),
@@ -1601,28 +1676,25 @@ router.post(
                 userAgent: metric.clientInfo.userAgent,
                 language: metric.clientInfo.language,
                 timezone: metric.clientInfo.timezone,
-                screenInfo: metric.clientInfo.screen || {},
-                deviceInfo: {
-                  deviceMemory: metric.clientInfo.deviceMemory,
-                  hardwareConcurrency: metric.clientInfo.hardwareConcurrency
-                },
-                networkInfo: metric.clientInfo.connection || {},
+                platform: metric.clientInfo.platform || metric.platform || metric.metadata.platform || undefined,
+                screenInfo: isPlainObject(metric.clientInfo.screen) ? metric.clientInfo.screen : {},
+                deviceInfo: buildClientDeviceInfo(metric.clientInfo),
+                networkInfo: isPlainObject(metric.clientInfo.connection) ? metric.clientInfo.connection : {},
                 appVersion: metric.clientInfo.appVersion,
+                buildTime: parseOptionalDate(metric.clientInfo.buildTime),
               },
               create: {
                 clientId: metric.metadata.clientId,
                 name: `自动创建-${metric.metadata.clientId}`,
-                platform: metric.metadata.platform || 'unknown',
+                platform: String(metric.clientInfo.platform || metric.platform || metric.metadata.platform || 'unknown'),
                 userAgent: metric.clientInfo.userAgent,
                 language: metric.clientInfo.language,
                 timezone: metric.clientInfo.timezone,
-                screenInfo: metric.clientInfo.screen || {},
-                deviceInfo: {
-                  deviceMemory: metric.clientInfo.deviceMemory,
-                  hardwareConcurrency: metric.clientInfo.hardwareConcurrency
-                },
-                networkInfo: metric.clientInfo.connection || {},
+                screenInfo: isPlainObject(metric.clientInfo.screen) ? metric.clientInfo.screen : {},
+                deviceInfo: buildClientDeviceInfo(metric.clientInfo),
+                networkInfo: isPlainObject(metric.clientInfo.connection) ? metric.clientInfo.connection : {},
                 appVersion: metric.clientInfo.appVersion,
+                buildTime: parseOptionalDate(metric.clientInfo.buildTime) || null,
                 lastActiveAt: new Date(),
                 totalRequests: 0,
                 totalTokens: BigInt(0),

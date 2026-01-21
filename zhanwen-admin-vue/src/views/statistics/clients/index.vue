@@ -117,6 +117,13 @@
           <div class="pre">{{ detailData?.userAgent || '-' }}</div>
         </ElDescriptionsItem>
 
+        <ElDescriptionsItem label="设备类型">{{ formatDeviceType(detailData?.deviceInfo) }}</ElDescriptionsItem>
+        <ElDescriptionsItem label="系统">{{ formatOs(detailData?.deviceInfo) }}</ElDescriptionsItem>
+        <ElDescriptionsItem label="浏览器">{{ formatBrowser(detailData?.deviceInfo) }}</ElDescriptionsItem>
+        <ElDescriptionsItem label="设备型号">{{ formatDeviceModel(detailData?.deviceInfo) }}</ElDescriptionsItem>
+        <ElDescriptionsItem label="厂商">{{ formatManufacturer(detailData?.deviceInfo) }}</ElDescriptionsItem>
+        <ElDescriptionsItem label="是否模拟器">{{ formatIsVirtual(detailData?.deviceInfo) }}</ElDescriptionsItem>
+
         <ElDescriptionsItem label="首次出现">{{ formatDateTime(detailData?.firstSeen) }}</ElDescriptionsItem>
         <ElDescriptionsItem label="最后活跃">{{ formatDateTime(detailData?.lastActiveAt) }}</ElDescriptionsItem>
 
@@ -326,10 +333,77 @@
     return '-'
   }
 
+  const deviceTypeLabel = (k: string) => {
+    if (k === 'desktop') return '桌面端'
+    if (k === 'mobile') return '移动端'
+    if (k === 'tablet') return '平板'
+    return '其他'
+  }
+
+  const getOsFromDeviceInfo = (info: any) => {
+    const native = info?.nativeDevice
+    const ua = info?.uaSummary
+    const name = String(native?.operatingSystem || ua?.os?.name || '').trim()
+    const version = String(native?.osVersion || ua?.os?.version || '').trim()
+    return { name: name || '', version: version || '' }
+  }
+
+  const getBrowserFromDeviceInfo = (info: any) => {
+    const ua = info?.uaSummary
+    const name = String(ua?.browser?.name || '').trim()
+    const version = String(ua?.browser?.version || '').trim()
+    return { name: name || '', version: version || '' }
+  }
+
+  const formatDeviceType = (info: any) => {
+    const t = String(info?.deviceType || '').trim()
+    if (!t) return '-'
+    return deviceTypeLabel(t)
+  }
+
+  const formatOs = (info: any) => {
+    const { name, version } = getOsFromDeviceInfo(info)
+    if (!name) return '-'
+    return version ? `${name} ${version}` : name
+  }
+
+  const formatBrowser = (info: any) => {
+    const { name, version } = getBrowserFromDeviceInfo(info)
+    if (!name) return '-'
+    const major = version ? String(version).split('.')[0] : ''
+    return major ? `${name} ${major}` : name
+  }
+
+  const formatDeviceModel = (info: any) => {
+    const native = info?.nativeDevice
+    const model = String(native?.model || info?.userAgentData?.model || '').trim()
+    return model || '-'
+  }
+
+  const formatManufacturer = (info: any) => {
+    const m = String(info?.nativeDevice?.manufacturer || '').trim()
+    return m || '-'
+  }
+
+  const formatIsVirtual = (info: any) => {
+    const v = info?.nativeDevice?.isVirtual
+    if (typeof v !== 'boolean') return '-'
+    return v ? '是' : '否'
+  }
+
   const formatDevice = (info: any) => {
     const mem = Number(info?.deviceMemory)
     const cpu = Number(info?.hardwareConcurrency)
+    const deviceType = String(info?.deviceType || '').trim()
+    const os = getOsFromDeviceInfo(info)
+    const browser = getBrowserFromDeviceInfo(info)
     const parts: string[] = []
+    if (deviceType) parts.push(deviceTypeLabel(deviceType))
+    if (os.name) parts.push(os.version ? `${os.name} ${os.version}` : os.name)
+    if (browser.name) {
+      const major = browser.version ? browser.version.split('.')[0] : ''
+      parts.push(major ? `${browser.name} ${major}` : browser.name)
+    }
     if (Number.isFinite(mem) && mem > 0) parts.push(`${mem}GB`)
     if (Number.isFinite(cpu) && cpu > 0) parts.push(`${cpu}核`)
     return parts.length ? parts.join(' / ') : '-'
@@ -486,4 +560,3 @@
     margin: 0;
   }
 </style>
-
