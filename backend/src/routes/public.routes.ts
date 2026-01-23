@@ -244,10 +244,113 @@ router.post(
   '/public/divination/reading',
   authPublicAccess('divination:analyze'),
   asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const { result, options } = req.body || {};
-    if (!result) {
-      res.status(400).json({ success: false, message: '缺少参数', code: 'INVALID_INPUT' });
+    const body: any = req.body || {};
+    const bodyOptions = isPlainObject(body?.options) ? body.options : {};
+    const result: any = isPlainObject(body?.result)
+      ? body.result
+      : (isPlainObject(body)
+          ? (() => {
+              const { options: _options, result: _result, ...rest } = body;
+              return rest;
+            })()
+          : null);
+
+    const badRequest = (message: string) => {
+      res.status(400).json({ success: false, message, code: 'INVALID_INPUT' });
+    };
+
+    if (!isPlainObject(result)) {
+      badRequest('缺少参数 result');
       return;
+    }
+
+    const tsRaw = (result as any).timestamp;
+    const ts = typeof tsRaw === 'number' ? tsRaw : Number(tsRaw);
+    if (!Number.isFinite(ts) || ts <= 0) {
+      badRequest('timestamp 无效');
+      return;
+    }
+    (result as any).timestamp = ts;
+
+    let isTimeHexagram: boolean | undefined =
+      typeof (result as any).isTimeHexagram === 'boolean' ? (result as any).isTimeHexagram : undefined;
+    if (isTimeHexagram === undefined && typeof (result as any).mode === 'string') {
+      const m = String((result as any).mode).trim().toLowerCase();
+      if (['time', 'time_hexagram', 'timed'].includes(m)) isTimeHexagram = true;
+      else if (['live', 'realtime', 'active'].includes(m)) isTimeHexagram = false;
+    }
+    if (isTimeHexagram === undefined) {
+      badRequest('缺少起卦类型（isTimeHexagram 或 mode）');
+      return;
+    }
+    (result as any).isTimeHexagram = isTimeHexagram;
+
+    const toFiniteNumber = (v: any): number | null => {
+      const n = typeof v === 'number' ? v : Number(v);
+      return Number.isFinite(n) ? n : null;
+    };
+
+    const parseTriNumbers = (v: any): { sky: number; earth: number; human: number } | null => {
+      if (Array.isArray(v) && v.length >= 3) {
+        const sky = toFiniteNumber(v[0]);
+        const earth = toFiniteNumber(v[1]);
+        const human = toFiniteNumber(v[2]);
+        if (sky == null || earth == null || human == null) return null;
+        return { sky, earth, human };
+      }
+      if (isPlainObject(v)) {
+        const sky = toFiniteNumber((v as any).sky);
+        const earth = toFiniteNumber((v as any).earth);
+        const human = toFiniteNumber((v as any).human);
+        if (sky == null || earth == null || human == null) return null;
+        return { sky, earth, human };
+      }
+      return null;
+    };
+
+    if (!isTimeHexagram) {
+      const tri = parseTriNumbers((result as any).numbers ?? (result as any).randomNumbers);
+      if (!tri) {
+        badRequest('活时卦缺少天地人三数（numbers 或 randomNumbers）');
+        return;
+      }
+      (result as any).numbers = tri;
+    }
+
+    const threePalaces = (result as any).threePalaces;
+    if (!isPlainObject(threePalaces)) {
+      badRequest('缺少 threePalaces');
+      return;
+    }
+
+    const requiredPalaceFields = ['name', 'element', 'sixGod', 'season', 'direction', 'sixRelative'] as const;
+    const ensureStringField = (obj: any, path: string, key: string): boolean => {
+      const v = obj?.[key];
+      if (typeof v !== 'string' || v.trim() === '') {
+        badRequest(`缺少字段 ${path}.${key}`);
+        return false;
+      }
+      return true;
+    };
+
+    for (const palaceKey of ['sky', 'earth', 'human'] as const) {
+      const palace = (threePalaces as any)?.[palaceKey];
+      if (!isPlainObject(palace)) {
+        badRequest(`缺少字段 threePalaces.${palaceKey}`);
+        return;
+      }
+      for (const f of requiredPalaceFields) {
+        if (!ensureStringField(palace, `threePalaces.${palaceKey}`, f)) return;
+      }
+    }
+
+    const tiYong = (result as any).tiYong;
+    if (!isPlainObject(tiYong)) {
+      badRequest('缺少 tiYong');
+      return;
+    }
+    for (const f of ['bodyElement', 'bodyYinYang', 'useElement', 'useYinYang', 'relation'] as const) {
+      if (!ensureStringField(tiYong, 'tiYong', f)) return;
     }
 
     // 业务日志：记录进入详细解读请求
@@ -309,6 +412,9 @@ router.post(
         logger.warn('[Reading] upsert client failed', e);
       }
     }
+
+    const languageFinal = String((bodyOptions as any)?.language || (body as any)?.language || (result as any)?.language || language || 'zh').trim();
+    const options = { ...(bodyOptions as any), language: languageFinal || undefined };
 
     const service = new AIChatService();
     let out: any;

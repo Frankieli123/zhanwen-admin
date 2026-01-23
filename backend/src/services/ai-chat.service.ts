@@ -86,19 +86,57 @@ function convertElementToChinese(element: string): string {
   }
 }
 
+function convertYinYangToChinese(v: string): string {
+  const s = String(v || '').trim().toLowerCase();
+  if (s === 'yin' || s === '阴') return '阴';
+  if (s === 'yang' || s === '阳') return '阳';
+  return v || '未知';
+}
+
+function convertTiYongRelationToChinese(v: string): string {
+  const s = String(v || '').trim().toLowerCase();
+  if (s === 'bi_assist' || s === '体用比助' || s === '比助') return '体用比助';
+  if (s === 'bi_rob' || s === '体用比劫' || s === '比劫') return '体用比劫';
+  if (s === 'yong_ke_ti' || s === '用克体') return '用克体';
+  if (s === 'ti_ke_yong' || s === '体克用') return '体克用';
+  if (s === 'yong_sheng_ti' || s === '用生体') return '用生体';
+  if (s === 'ti_sheng_yong' || s === '体生用') return '体生用';
+  if (s === 'none' || s === '体用无明显生克' || s === '无明显生克') return '体用无明显生克';
+  if (s === 'ti_he_yong' || s === '体合用') return '体合用';
+  if (s === 'ti_yong_bi_he' || s === '体用比和') return '体用比和';
+  return v || '未知';
+}
+
+function formatShanghaiTime(ts: number): string {
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    timeZone: 'Asia/Shanghai',
+  } as any);
+}
+
 function buildTerminologyGlossary(targetLang: string): string {
   const lines: string[] = [];
   const lang = (targetLang || '').toLowerCase();
   if (lang.startsWith('en')) {
     lines.push('术语对照表：');
-    lines.push('大安=Great Peace');
-    lines.push('留连=Lingering');
-    lines.push('速喜=Swift Joy');
-    lines.push('赤口=Red Mouth');
-    lines.push('小吉=Lesser Auspice');
-    lines.push('空亡=Void');
+    lines.push(`大安=Da'an`);
+    lines.push('留连=Liulian');
+    lines.push('速喜=Suxi');
+    lines.push('赤口=Chikou');
+    lines.push('小吉=Xiaoji');
+    lines.push('空亡=Kongwang');
     lines.push('五行：木=Wood, 火=Fire, 土=Earth, 金=Metal, 水=Water');
-    lines.push('六神：青龙=Azure Dragon, 朱雀=Vermilion Bird, 勾陈=Gou Chen, 腾蛇=Soaring Snake, 白虎=White Tiger, 玄武=Black Tortoise');
+    lines.push('六神：青龙=Azure Dragon, 朱雀=Vermilion Bird, 勾陈=Gou Chen, 腾蛇=Soaring Serpent, 白虎=White Tiger, 玄武=Black Tortoise');
+    lines.push('阴阳：阴=Yin, 阳=Yang');
+    lines.push('六亲：父母=Parents, 子孙=Offspring, 官鬼=Authority, 妻财=Wealth, 兄弟=Siblings, 小人=Villain, 我=Self');
+    lines.push('体用：体用比助=Mutual support, 体用比劫=Rivalry, 用生体=Use generates Body, 体生用=Body generates Use, 用克体=Use overcomes Body, 体克用=Body overcomes Use, 体用无明显生克=No clear interaction');
   } else if (lang.startsWith('ja')) {
     lines.push('用語対照表：');
     lines.push('大安=大安（たいあん）');
@@ -164,33 +202,57 @@ function extractGeminiText(payload: any): string | null {
 }
 
 function buildUserPrompt(result: any, userIntro: string, userGuidelines: string): string {
-  const threePalaces = result?.threePalaces;
   let prompt = `${userIntro}\n`;
 
-  const currentTime = new Date();
-  const timeString = currentTime.toLocaleString('zh-CN', {
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
-    timeZone: 'Asia/Shanghai'
-  } as any);
+  const tsRaw = result?.timestamp;
+  const ts = typeof tsRaw === 'number' ? tsRaw : Number(tsRaw);
+  const timeString = formatShanghaiTime(Number.isFinite(ts) ? ts : Date.now());
   prompt += `\n起卦时间: ${timeString}\n`;
+
+  const isTimeHexagram = typeof result?.isTimeHexagram === 'boolean' ? !!result.isTimeHexagram : undefined;
+  if (isTimeHexagram !== undefined) {
+    prompt += `\n起卦方式: ${isTimeHexagram ? '正时卦' : '活时卦'}\n`;
+  }
+
+  if (isTimeHexagram === false) {
+    const n = result?.numbers;
+    if (n && typeof n === 'object') {
+      const sky = (n as any).sky;
+      const earth = (n as any).earth;
+      const human = (n as any).human;
+      prompt += `\n天地人三数: 天=${sky} 地=${earth} 人=${human}\n`;
+    }
+  }
 
   if (result?.query) {
     prompt += `\n用户占问: ${result.query}\n`;
   }
 
+  const threePalaces = result?.threePalaces;
   if (threePalaces) {
-    try {
-      const sky = threePalaces.skyPalace?.hexagram;
-      const earth = threePalaces.earthPalace?.hexagram;
-      const human = threePalaces.humanPalace?.hexagram;
-      prompt += `\n三宫卦信息：\n`
-        + `天宫: ${sky?.name || '-'} (五行:${convertElementToChinese(sky?.element)}) (六神:${sky?.sixGod || '未知'})\n`
-        + `地宫: ${earth?.name || '-'} (五行:${convertElementToChinese(earth?.element)}) (六神:${earth?.sixGod || '未知'})\n`
-        + `人宫: ${human?.name || '-'} (五行:${convertElementToChinese(human?.element)}) (六神:${human?.sixGod || '未知'})\n`;
-    } catch (e) {
-      // ignore
-    }
+    const fmt = (label: string, palace: any) => {
+      const name = palace?.name || '-';
+      const element = convertElementToChinese(palace?.element);
+      const sixGod = palace?.sixGod || '未知';
+      const sixRelative = palace?.sixRelative || '未知';
+      const season = palace?.season || '未知';
+      const direction = palace?.direction || '未知';
+      return `${label}: ${name} (五行:${element}) (六神:${sixGod}) (六亲:${sixRelative}) (季节:${season}) (方位:${direction})\n`;
+    };
+    prompt += `\n三宫信息：\n`
+      + fmt('天宫', threePalaces?.sky)
+      + fmt('地宫', threePalaces?.earth)
+      + fmt('人宫', threePalaces?.human);
+  }
+
+  const tiYong = result?.tiYong;
+  if (tiYong) {
+    const bodyEl = convertElementToChinese(tiYong?.bodyElement);
+    const bodyYY = convertYinYangToChinese(tiYong?.bodyYinYang);
+    const useEl = convertElementToChinese(tiYong?.useElement);
+    const useYY = convertYinYangToChinese(tiYong?.useYinYang);
+    const rel = convertTiYongRelationToChinese(tiYong?.relation);
+    prompt += `\n体用关系: 体=${bodyEl}(${bodyYY}) 用=${useEl}(${useYY}) 关系=${rel}\n`;
   }
 
   prompt += `\n${userGuidelines}`;
