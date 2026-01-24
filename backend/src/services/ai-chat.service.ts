@@ -245,13 +245,13 @@ function buildUserPrompt(result: any, userIntro: string, userGuidelines: string)
       + fmt('人宫', threePalaces?.human);
   }
 
-  const tiYong = result?.tiYong;
-  if (tiYong) {
-    const bodyEl = convertElementToChinese(tiYong?.bodyElement);
-    const bodyYY = convertYinYangToChinese(tiYong?.bodyYinYang);
-    const useEl = convertElementToChinese(tiYong?.useElement);
-    const useYY = convertYinYangToChinese(tiYong?.useYinYang);
-    const rel = convertTiYongRelationToChinese(tiYong?.relation);
+  const tiYongRelation = result?.tiYongRelation;
+  if (tiYongRelation) {
+    const bodyEl = convertElementToChinese(tiYongRelation?.bodyElement);
+    const bodyYY = convertYinYangToChinese(tiYongRelation?.bodyYinYang);
+    const useEl = convertElementToChinese(tiYongRelation?.useElement);
+    const useYY = convertYinYangToChinese(tiYongRelation?.useYinYang);
+    const rel = convertTiYongRelationToChinese(tiYongRelation?.relation);
     prompt += `\n体用关系: 体=${bodyEl}(${bodyYY}) 用=${useEl}(${useYY}) 关系=${rel}\n`;
   }
 

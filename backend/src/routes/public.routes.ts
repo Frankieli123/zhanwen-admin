@@ -323,7 +323,8 @@ router.post(
       return;
     }
 
-    const requiredPalaceFields = ['name', 'element', 'sixGod', 'season', 'direction', 'sixRelative'] as const;
+    const requiredPalaceFields = ['name', 'element', 'sixGod', 'sixRelative'] as const;
+    const optionalPalaceFields = ['season', 'direction'] as const;
     const ensureStringField = (obj: any, path: string, key: string): boolean => {
       const v = obj?.[key];
       if (typeof v !== 'string' || v.trim() === '') {
@@ -342,15 +343,21 @@ router.post(
       for (const f of requiredPalaceFields) {
         if (!ensureStringField(palace, `threePalaces.${palaceKey}`, f)) return;
       }
+      for (const f of optionalPalaceFields) {
+        const v = palace?.[f];
+        if (typeof v !== 'string' || v.trim() === '') {
+          palace[f] = '未知';
+        }
+      }
     }
 
-    const tiYong = (result as any).tiYong;
-    if (!isPlainObject(tiYong)) {
-      badRequest('缺少 tiYong');
+    const tiYongRelation = (result as any).tiYongRelation;
+    if (!isPlainObject(tiYongRelation)) {
+      badRequest('缺少 tiYongRelation');
       return;
     }
     for (const f of ['bodyElement', 'bodyYinYang', 'useElement', 'useYinYang', 'relation'] as const) {
-      if (!ensureStringField(tiYong, 'tiYong', f)) return;
+      if (!ensureStringField(tiYongRelation, 'tiYongRelation', f)) return;
     }
 
     // 业务日志：记录进入详细解读请求
