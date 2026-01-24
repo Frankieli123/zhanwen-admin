@@ -200,22 +200,42 @@
       :align-center="true"
     >
       <ElForm ref="formRef" :model="formData" :rules="formRules" label-width="100px">
-        <ElFormItem label="模型名称">
+        <ElFormItem label="模型名称" prop="name">
           <div style="display: flex; gap: 8px; width: 100%">
-            <ElSelect
-              v-model="batchSelectedIds"
-              multiple
-              filterable
-              allow-create
-              default-first-option
-              collapse-tags
-              collapse-tags-tooltip
-              clearable
-              placeholder="可输入或从下拉选择模型ID（可多选）"
-              style="flex: 1"
-            >
-              <ElOption v-for="m in providerModels" :key="m.id" :label="m.id" :value="m.id" />
-            </ElSelect>
+            <template v-if="!formData.id">
+              <ElSelect
+                v-model="batchSelectedIds"
+                multiple
+                filterable
+                allow-create
+                default-first-option
+                collapse-tags
+                collapse-tags-tooltip
+                clearable
+                placeholder="可输入或从下拉选择模型ID（可多选）"
+                style="flex: 1"
+              >
+                <ElOption v-for="m in providerModels" :key="m.id" :label="m.id" :value="m.id" />
+              </ElSelect>
+            </template>
+            <template v-else>
+              <ElSelect
+                v-model="formData.name"
+                filterable
+                allow-create
+                default-first-option
+                clearable
+                placeholder="请输入或选择模型名称"
+                style="flex: 1"
+              >
+                <ElOption
+                  v-for="m in providerModels"
+                  :key="m.id"
+                  :label="m.name || m.id"
+                  :value="m.id"
+                />
+              </ElSelect>
+            </template>
             <ElButton
               type="primary"
               :loading="fetchingModels"
@@ -241,21 +261,6 @@
               :value="provider.name"
             />
           </ElSelect>
-        </ElFormItem>
-        <ElFormItem label="自定义API地址" prop="customApiUrl">
-          <ElInput
-            v-model="formData.customApiUrl"
-            placeholder="留空则使用服务商API地址"
-            clearable
-          />
-        </ElFormItem>
-        <ElFormItem label="API密钥" prop="apiKey">
-          <ElInput
-            v-model="formData.apiKey"
-            type="password"
-            placeholder="请输入API密钥"
-            show-password
-          />
         </ElFormItem>
         <ElFormItem label="模型角色" prop="role">
           <ElRadioGroup v-model="formData.role">
@@ -320,17 +325,6 @@
           <ElTag :type="detailData?.isActive ? 'success' : 'info'">
             {{ detailData?.isActive ? '启用' : '禁用' }}
           </ElTag>
-        </ElDescriptionsItem>
-        <ElDescriptionsItem label="API密钥">
-          <span>{{ apiKeyVisible ? detailRealApiKey() : '••••••••' }}</span>
-          <ElButton
-            text
-            type="primary"
-            @click="apiKeyVisible = !apiKeyVisible"
-            style="margin-left: 8px"
-          >
-            {{ apiKeyVisible ? '隐藏' : '显示' }}
-          </ElButton>
         </ElDescriptionsItem>
         <ElDescriptionsItem label="创建时间">
           {{ formatDate(detailData?.createdAt as any) }}
@@ -417,9 +411,7 @@
           displayName: string
         }
 
-    apiKey: string
-    customApiUrl?: string
-    model: string
+    model?: string
     enabled: boolean
     switching?: boolean
     testing?: boolean
@@ -430,47 +422,10 @@
   // 批量创建：根据已选择的 providerModels 的 id 批量创建模型
   const batchSelectedIds = ref<string[]>([])
 
-  // 服务商切换：先清空旧密钥与模型列表，避免跨服务商残留；再按新服务商从缓存或可用字段回填
-  const onProviderChange = async () => {
-    const providerName = String(formData.provider || '')
-
-    // 先清空，确保不会保留上一个服务商的真实密钥
-    formData.apiKey = ''
-    formData.customApiUrl = ''
-    // 清空已拉取的模型列表
+  // 服务商切换：清空已拉取的模型列表与批量选择，避免跨服务商残留
+  const onProviderChange = () => {
     providerModels.value = []
-
-    if (!providerName) return
-
-    // 1) 优先使用会话缓存中的真实明文密钥
-    // 清空批量选择
     batchSelectedIds.value = []
-    const cached = cachedApiKeyMap.value[providerName]
-    if (typeof cached === 'string' && cached && !isMaskedKey(cached)) {
-      formData.apiKey = cached
-      return
-    }
-
-    // 2) 若无缓存，尝试从已加载的服务商列表上可用字段推断（仅明文）
-    try {
-      const isRealKeyCandidate = (v?: any) => typeof v === 'string' && v && !isMaskedKey(String(v))
-      const p: any = (providersList.value || []).find((it: any) => it?.name === providerName)
-      if (p) {
-        const candidates = [p.apiKeyDecrypted, p.apiKeyPlain, p.apiKey]
-        const real = candidates.find(isRealKeyCandidate)
-        if (real) {
-          const realStr = String(real)
-          formData.apiKey = realStr
-          // 写入缓存，提升后续切换体验
-          cachedApiKeyMap.value[providerName] = realStr
-          saveApiKeyCache()
-        } else {
-          // 无可用明文则保持为空，不再弹提示，遵循静默策略
-        }
-      }
-    } catch {
-      // ignore
-    }
   }
 
   // 拉取指定服务商的模型列表
@@ -483,11 +438,7 @@
     }
     try {
       fetchingModels.value = true
-      const res: any = await fetchProviderModels({
-        provider: String(formData.provider),
-        apiKey: String(formData.apiKey || ''),
-        apiUrl: formData.customApiUrl ? String(formData.customApiUrl).trim() : undefined
-      })
+      const res: any = await fetchProviderModels({ provider: String(formData.provider) })
       const list = (res && (res.data || res.list)) || res || []
       const rawList = Array.isArray(list) ? list : []
       providerModels.value = rawList.map((m: any) => {
@@ -498,8 +449,12 @@
         const s = String(m)
         return { id: s, name: s }
       })
+      const currentName = String(formData.name || '').trim()
+      if (formData.id && currentName && !providerModels.value.some((m) => m.id === currentName)) {
+        providerModels.value.unshift({ id: currentName, name: currentName })
+      }
       ElMessage.success(`已拉取 ${providerModels.value.length} 个模型`)
-      if (batchSelectedIds.value.length === 0 && providerModels.value.length > 0) {
+      if (!formData.id && batchSelectedIds.value.length === 0 && providerModels.value.length > 0) {
         batchSelectedIds.value = [providerModels.value[0].id]
       }
     } catch (err: any) {
@@ -569,43 +524,8 @@
   const dialogTitle = ref('新增模型')
   const detailVisible = ref(false) // 详情数据
   const detailData = ref<AIModelExtended | null>(null)
-  const apiKeyVisible = ref(false)
   const providersList = ref<AIProvider[]>([])
   const providersLoading = ref(false)
-  // 会话级服务商密钥缓存 { [providerName]: realApiKey }
-  const cachedApiKeyMap = ref<Record<string, string>>({})
-  // 记录表单打开时（编辑态）预填的密钥，用于判断是否被用户修改
-  const prefilledApiKey = ref<string>('')
-
-  const cacheStorageKey = 'ai-provider-apikey-cache'
-  const loadApiKeyCache = () => {
-    try {
-      const raw = sessionStorage.getItem(cacheStorageKey)
-      cachedApiKeyMap.value = raw ? (JSON.parse(raw) as Record<string, string>) : {}
-    } catch {
-      cachedApiKeyMap.value = {}
-    }
-  }
-  const saveApiKeyCache = () => {
-    try {
-      sessionStorage.setItem(cacheStorageKey, JSON.stringify(cachedApiKeyMap.value))
-    } catch {
-      /* ignore */
-    }
-  }
-
-  // 判断一个密钥是否可能为“掩码/脱敏”
-  const isMaskedKey = (val: string) => {
-    if (!val || typeof val !== 'string') return false
-    const s = val.trim()
-    if (!s) return false
-    const masked = (s.match(/[＊*•]/g) || []).length
-    const visible = s.replace(/[＊*•]/g, '').replace(/\s/g, '').length
-    return masked >= 6 && visible <= 4
-  }
-
-  // 判定候选值是否为可用的真实密钥（非空、字符串、且非掩码）
-  const isRealKeyCandidate = (v: unknown) => typeof v === 'string' && v && !isMaskedKey(String(v))
 
   // 搜索表单
   const searchFormState = reactive<Record<string, any>>({
@@ -678,8 +598,6 @@
     name: '',
     displayName: '',
     provider: '',
-    apiKey: '',
-    customApiUrl: '',
     model: '',
     role: 'secondary',
     priority: 5,
@@ -690,14 +608,11 @@
 
   // 表单规则
   const formRules: FormRules = {
-    provider: [{ required: true, message: '请选择服务商', trigger: 'change' }],
-    // 创建时必填；编辑时可留空表示不修改
-    apiKey: [
+    name: [
       {
         validator: (_rule, value, callback) => {
-          const creating = !formData.id
-          if (creating && (!value || String(value).trim() === '')) {
-            callback(new Error('请输入API密钥'))
+          if (formData.id && (!value || String(value).trim() === '')) {
+            callback(new Error('请输入模型名称'))
             return
           }
           callback()
@@ -705,27 +620,7 @@
         trigger: 'blur'
       }
     ],
-    customApiUrl: [
-      {
-        validator: (_rule, value, callback) => {
-          if (value === undefined || value === null || value === '') {
-            callback()
-            return
-          }
-          const url = String(value).trim()
-          if (!url) {
-            callback()
-            return
-          }
-          if (url.startsWith('http://') || url.startsWith('https://')) {
-            callback()
-          } else {
-            callback(new Error('请输入正确的URL'))
-          }
-        },
-        trigger: 'blur'
-      }
-    ],
+    provider: [{ required: true, message: '请选择服务商', trigger: 'change' }],
     costPer1kTokens: [
       {
         validator: (_rule, value, callback) => {
@@ -1007,9 +902,8 @@
     Object.assign(formData, {
       id: undefined,
       name: '',
+      displayName: '',
       provider: '',
-      apiKey: '',
-      customApiUrl: '',
       model: '',
       role: 'secondary',
       priority: 5,
@@ -1018,7 +912,6 @@
       enabled: true
     })
     batchSelectedIds.value = []
-    prefilledApiKey.value = ''
     providerModels.value = []
     // 先打开对话框，提升交互响应速度
     dialogVisible.value = true
@@ -1044,9 +937,6 @@
       name: row.name || '',
       displayName: (row as any).displayName ?? row.name ?? '',
       provider: providerName,
-      // 先置空，随后通过详情接口填充真实密钥
-      apiKey: '',
-      customApiUrl: (row as any).customApiUrl || (row as any).baseUrl || '',
       // 去掉“模型ID”编辑项，保留内部值用于兼容后端（若存在）
       model: row.model || row.name || '',
       role: (row as any).role || 'secondary',
@@ -1058,44 +948,11 @@
 
     // 打开对话框
     dialogVisible.value = true
-    providerModels.value = []
+    providerModels.value = row.name ? [{ id: String(row.name), name: String(row.name) }] : []
 
     // 懒加载服务商列表
     if (!providersList.value || providersList.value.length === 0) {
       void fetchProviders()
-    }
-
-    // 加载数据库中的真实密钥并回填（密码框会默认隐藏，用户可点击眼睛查看）
-    try {
-      const data = await getAIModel(row.id)
-      const prov =
-        typeof data.provider === 'object'
-          ? data.provider.name
-          : String(data.provider || providerName)
-      formData.provider = prov
-      const realCandidates = [
-        (data as any).apiKeyDecrypted,
-        (data as any).apiKeyPlain,
-        (data as any).apiKey,
-        (data as any).apiKeyEncrypted
-      ]
-      const fetchedReal: string = (realCandidates.find(isRealKeyCandidate) as string) || ''
-      const fromCache = cachedApiKeyMap.value[prov]
-      // 仅使用真实明文密钥进行回填，避免显示掩码/加密值
-      formData.apiKey =
-        typeof fromCache === 'string' && fromCache && !isMaskedKey(String(fromCache))
-          ? fromCache
-          : fetchedReal
-      // 记录预填值，用于提交时判断是否未修改
-      prefilledApiKey.value = formData.apiKey || ''
-      formData.customApiUrl = (data as any).customApiUrl || (data as any).baseUrl || formData.customApiUrl
-      // 将“拉取到的明文密钥”写入会话缓存
-      if (!fromCache && fetchedReal) {
-        cachedApiKeyMap.value[prov] = fetchedReal
-        saveApiKeyCache()
-      }
-    } catch {
-      // ignore
     }
   }
 
@@ -1108,18 +965,6 @@
     try {
       const response = await getActiveProviders()
       providersList.value = response || []
-      // 同步缓存：仅当服务商返回了"明显为明文"的密钥字段时缓存
-      let cachedAny = false
-      for (const p of providersList.value as any[]) {
-        if (!p || !p.name) continue
-        const candidates = [p.apiKeyDecrypted, p.apiKeyPlain, p.apiKey]
-        const key = candidates.find(isRealKeyCandidate)
-        if (typeof key === 'string' && key) {
-          cachedApiKeyMap.value[p.name] = key
-          cachedAny = true
-        }
-      }
-      if (cachedAny) saveApiKeyCache()
     } catch {
       /* ignore */
     } finally {
@@ -1158,7 +1003,6 @@
   const handleView = async (row: AIModelExtended) => {
     detailData.value = { ...row }
     detailVisible.value = true
-    apiKeyVisible.value = false
     await refreshDetail()
   }
 
@@ -1173,39 +1017,12 @@
         ...detailData.value,
         ...data,
         provider,
-        apiKey: data.apiKeyEncrypted || '',
         model: data.displayName,
         enabled: data.isActive
-      }
-      // 仅当详情接口返回了明文密钥字段时缓存（排除掩码，优先 decrypted/plain）
-      const realCandidates = [
-        (data as any).apiKeyDecrypted,
-        (data as any).apiKeyPlain,
-        (data as any).apiKey,
-        (data as any).apiKeyEncrypted
-      ]
-      const fetchedReal: string = (realCandidates.find(isRealKeyCandidate) as string) || ''
-      if (provider && fetchedReal) {
-        cachedApiKeyMap.value[String(provider)] = fetchedReal
-        saveApiKeyCache()
       }
     } catch {
       // ignore
     }
-  }
-
-  // 详情抽屉显示真实密钥：优先会话缓存；无缓存则尝试后端字段（apiKey/apiKeyPlain/apiKeyDecrypted/apiKeyEncrypted）；都无则 '-'
-  const detailRealApiKey = () => {
-    const p = (() => {
-      const prov = (detailData.value as any)?.provider
-      if (!prov) return ''
-      return typeof prov === 'object' ? prov.name : String(prov)
-    })()
-    const cached = p && cachedApiKeyMap.value[p]
-    if (cached && !isMaskedKey(String(cached))) return cached
-    const d: any = detailData.value || {}
-    const real = [d.apiKeyDecrypted, d.apiKeyPlain, d.apiKey].find(isRealKeyCandidate)
-    return real || '-'
   }
 
   // 删除模型
@@ -1284,33 +1101,11 @@
       const basePayload: any = { ...formData }
       // 清理空字段，避免后端校验报错
       if (!basePayload.displayName) delete basePayload.displayName
-      if (basePayload.customApiUrl === '') delete basePayload.customApiUrl
       if (basePayload.costPer1kTokens === '' || basePayload.costPer1kTokens === null) delete basePayload.costPer1kTokens
       if (basePayload.contextWindow === '' || basePayload.contextWindow === null) delete basePayload.contextWindow
       basePayload.isActive = !!basePayload.enabled
       delete basePayload.enabled
       delete basePayload.id
-      // 若为空，则不提交 apiKey，保持后端密钥不变
-      if (
-        basePayload.apiKey === '' ||
-        basePayload.apiKey === undefined ||
-        basePayload.apiKey === null
-      ) {
-        delete basePayload.apiKey
-      } else if (typeof basePayload.apiKey === 'string' && isMaskedKey(basePayload.apiKey)) {
-        // 掩码串不提交、不缓存，避免覆盖真实密钥
-        delete basePayload.apiKey
-      } else if (basePayload.provider) {
-        // 缓存真实密钥（仅明文）
-        const p = String(basePayload.provider)
-        if (p) {
-          cachedApiKeyMap.value[p] = basePayload.apiKey
-          saveApiKeyCache()
-        }
-      }
-      if (formData.id && prefilledApiKey.value && basePayload.apiKey === prefilledApiKey.value) {
-        delete basePayload.apiKey
-      }
       // 若未填写模型ID，避免发送空字段
       if (
         basePayload.model === '' ||
@@ -1417,8 +1212,7 @@
 
   // 初始化
   onMounted(() => {
-    // 先加载本地缓存，再拉取服务商（同步可用密钥），最后加载列表
-    loadApiKeyCache()
+    // 先拉取服务商，再加载列表
     fetchProviders()
     loadData()
     // 监听服务商变更事件，强制刷新服务商下拉

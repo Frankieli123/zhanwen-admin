@@ -347,7 +347,7 @@ export class AIProviderService {
   /**
    * 获取所有活跃的服务商（用于下拉选择）
    */
-  async getActiveProviders(): Promise<Array<{ id: number; name: string; displayName: string; supportedModels: string[]; baseUrl?: string }>> {
+  async getActiveProviders(): Promise<Array<{ id: number; name: string; displayName: string; baseUrl: string; providerType: string }>> {
     try {
       const providers = await prisma.aiProvider.findMany({
         where: { isActive: true },
@@ -355,8 +355,8 @@ export class AIProviderService {
           id: true,
           name: true,
           displayName: true,
-          supportedModels: true,
           baseUrl: true,
+          providerType: true,
         },
         orderBy: { displayName: 'asc' },
       });

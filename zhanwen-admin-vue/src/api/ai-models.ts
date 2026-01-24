@@ -197,7 +197,7 @@ export interface ModelInfo {
 // 拉取指定服务商的模型列表
 export const fetchProviderModels = (data: {
   provider: string
-  apiKey: string
+  apiKey?: string
   apiUrl?: string
 }) => {
   return request.post<ModelInfo[]>({

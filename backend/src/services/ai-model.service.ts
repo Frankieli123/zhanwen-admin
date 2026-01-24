@@ -15,7 +15,15 @@ export class AIModelService {
   /**
    * 获取模型列表（分页）
    */
-  async getModels(query: PaginationQuery): Promise<PaginatedResponse<AiModel & { provider: AiProvider }>> {
+  async getModels(
+    query: PaginationQuery
+  ): Promise<
+    PaginatedResponse<
+      AiModel & {
+        provider: Pick<AiProvider, 'id' | 'name' | 'displayName' | 'providerType' | 'baseUrl' | 'isActive'>;
+      }
+    >
+  > {
     const {
       page = 1,
       limit = 10,
@@ -57,12 +65,38 @@ export class AIModelService {
     }
 
     try {
-      const [models, total] = await Promise.all([
+      const [modelsRaw, total] = await Promise.all([
         prisma.aiModel.findMany({
           where,
-          include: {
-            provider: true,
-          },
+          // 列表页仅需展示基础信息；避免携带 provider.supportedModels 等大字段导致响应体过大、前端加载缓慢
+          select: {
+            id: true,
+            providerId: true,
+            name: true,
+            displayName: true,
+            apiKeyEncrypted: true,
+            customApiUrl: true,
+            modelType: true,
+            parameters: true,
+            role: true,
+            priority: true,
+            costPer1kTokens: true,
+            contextWindow: true,
+            isActive: true,
+            metadata: true,
+            createdAt: true,
+            updatedAt: true,
+            provider: {
+              select: {
+                id: true,
+                name: true,
+                displayName: true,
+                providerType: true,
+                baseUrl: true,
+                isActive: true,
+              },
+            },
+          } as any,
           orderBy,
           skip,
           take: limit,
@@ -70,11 +104,11 @@ export class AIModelService {
         prisma.aiModel.count({ where }),
       ]);
 
+      const models = modelsRaw as any[];
+
       // 解密API密钥用于显示（只显示前几位）
-      // 当模型未设置密钥时，回退到服务商级密钥进行掩码显示
       const modelsWithMaskedKeys = models.map(model => {
-        const providerEncrypted = (model as any)?.provider?.apiKeyEncrypted as string | null | undefined;
-        const encrypted = model.apiKeyEncrypted || providerEncrypted || null;
+        const encrypted = (model as any)?.apiKeyEncrypted as string | null | undefined;
         return {
           ...model,
           apiKeyEncrypted: encrypted ? this.maskApiKey(encrypted) : null,
