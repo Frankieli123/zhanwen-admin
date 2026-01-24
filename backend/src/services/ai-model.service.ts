@@ -306,7 +306,7 @@ export class AIModelService {
           modelType: data.modelType || 'chat',
           parameters: data.parameters || {
             temperature: 0.7,
-            max_tokens: 3000,
+            max_tokens: 0,
             top_p: 1.0,
             frequency_penalty: 0.0,
             presence_penalty: 0.0,
@@ -314,7 +314,7 @@ export class AIModelService {
           role: data.role || 'secondary',
           priority: data.priority || 100,
           costPer1kTokens: data.costPer1kTokens || 0,
-          contextWindow: data.contextWindow || 4000,
+          contextWindow: data.contextWindow ?? 2000000,
           isActive: data.isActive !== undefined ? data.isActive : true,
           metadata: data.metadata || {},
         },

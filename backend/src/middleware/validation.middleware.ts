@@ -110,7 +110,7 @@ export const aiModelValidation = {
       modelType: Joi.string().valid('chat', 'completion', 'embedding').default('chat'),
       parameters: Joi.object({
         temperature: Joi.number().min(0).max(2).default(0.7),
-        max_tokens: Joi.number().integer().min(1).max(8000).default(3000),
+        max_tokens: Joi.number().integer().min(0).max(2000000).default(0),
         top_p: Joi.number().min(0).max(1).default(1.0),
         frequency_penalty: Joi.number().min(-2).max(2).default(0),
         presence_penalty: Joi.number().min(-2).max(2).default(0),
@@ -118,7 +118,7 @@ export const aiModelValidation = {
       role: Joi.string().valid('primary', 'secondary', 'disabled').default('secondary'),
       priority: Joi.number().integer().min(1).max(1000).default(100),
       costPer1kTokens: Joi.number().min(0).default(0),
-      contextWindow: Joi.number().integer().min(1).max(1000000).default(4000),
+      contextWindow: Joi.number().integer().min(1).max(2000000).default(2000000),
       isActive: Joi.boolean().default(true),
       metadata: Joi.object().default({}),
     }),
@@ -141,7 +141,7 @@ export const aiModelValidation = {
       modelType: Joi.string().valid('chat', 'completion', 'embedding').optional(),
       parameters: Joi.object({
         temperature: Joi.number().min(0).max(2),
-        max_tokens: Joi.number().integer().min(1).max(8000),
+        max_tokens: Joi.number().integer().min(0).max(2000000),
         top_p: Joi.number().min(0).max(1),
         frequency_penalty: Joi.number().min(-2).max(2),
         presence_penalty: Joi.number().min(-2).max(2),
@@ -152,7 +152,7 @@ export const aiModelValidation = {
         Joi.number().min(0),
         Joi.string().pattern(/^\d+(\.\d+)?$/).custom((value) => parseFloat(value))
       ).optional(),
-      contextWindow: Joi.number().integer().min(1).max(1000000).optional(),
+      contextWindow: Joi.number().integer().min(1).max(2000000).optional(),
       isActive: Joi.boolean().optional(),
       metadata: Joi.object().optional(),
     }),

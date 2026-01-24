@@ -46,7 +46,7 @@
 - API密钥 (加密存储)
 - 模型参数:
   - temperature (0.0-2.0)
-  - max_tokens (1-4000)
+  - max_tokens (0=不显式限制)
   - top_p (0.0-1.0)
   - frequency_penalty (-2.0-2.0)
   - presence_penalty (-2.0-2.0)

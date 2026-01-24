@@ -85,7 +85,7 @@ async function main() {
                 modelType: 'chat',
                 parameters: {
                     temperature: 0.7,
-                    max_tokens: 3000,
+                    max_tokens: 0,
                     top_p: 1.0,
                     frequency_penalty: 0.0,
                     presence_penalty: 0.0,
@@ -93,7 +93,7 @@ async function main() {
                 role: 'primary',
                 priority: 1,
                 costPer1kTokens: 0.002,
-                contextWindow: 4000,
+                contextWindow: 2000000,
                 isActive: true,
             },
         });

@@ -355,9 +355,14 @@ export class AIChatService {
           if (g5[1]) reasoningEffort = g5[1].toLowerCase() as any;
         }
         const provName = providerType || 'unknown';
-        let maxTokens: number | undefined = typeof params.max_tokens === 'number' ? params.max_tokens : undefined;
+        const rawMaxTokens =
+          typeof params.max_tokens === 'number' && Number.isFinite(params.max_tokens)
+            ? Math.trunc(params.max_tokens)
+            : undefined;
+        const unlimitedOutput = rawMaxTokens == null || rawMaxTokens <= 0 || rawMaxTokens === 3000;
+
+        let maxTokens: number | undefined = unlimitedOutput ? undefined : rawMaxTokens;
         if (provName === 'deepseek') {
-          if (typeof maxTokens !== 'number') maxTokens = 2048;
           if (typeof maxTokens === 'number') {
             if (maxTokens < 1) maxTokens = 1;
             if (maxTokens > 8192) maxTokens = 8192;
@@ -385,109 +390,138 @@ export class AIChatService {
 
         if (providerType === 'anthropic') {
           const apiUrl = buildAnthropicMessagesUrl(base);
-          const requestBody: any = {
-            model: originalModelName,
-            system: systemPrompt,
-            messages: [{ role: 'user', content: userPromptFinal }],
-            stream: false,
-            temperature: params.temperature ?? 0.7,
-            top_p: params.top_p,
-            max_tokens: typeof maxTokens === 'number' ? maxTokens : 1024,
-          };
+          const maxTokensAttempts = unlimitedOutput
+            ? [64000, 8192, 4096]
+            : typeof maxTokens === 'number' && maxTokens > 0
+              ? [maxTokens]
+              : [1024];
 
-          const resp = await fetch(apiUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-api-key': apiKey,
-              'anthropic-version': '2023-06-01',
-            },
-            body: JSON.stringify(requestBody),
-          });
+          let lastErr: unknown;
+          for (let i = 0; i < maxTokensAttempts.length; i += 1) {
+            const mt = maxTokensAttempts[i];
+            const requestBody: any = {
+              model: originalModelName,
+              system: systemPrompt,
+              messages: [{ role: 'user', content: userPromptFinal }],
+              stream: false,
+              temperature: params.temperature ?? 0.7,
+              top_p: params.top_p,
+              max_tokens: mt,
+            };
 
-          if (!resp.ok) {
-            const text = await resp.text().catch(() => '');
-            throw new Error(`HTTP ${resp.status}: ${resp.statusText} ${text}`.trim());
-          }
+            const resp = await fetch(apiUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': apiKey,
+                'anthropic-version': '2023-06-01',
+              },
+              body: JSON.stringify(requestBody),
+            });
 
-          const data = await resp.json() as any;
-          const reading = extractAnthropicText(data);
-          if (!reading || typeof reading !== 'string') {
-            throw new Error('AI返回结果格式错误或为空');
-          }
-
-          const usage = data?.usage || {};
-          const inputTokens = typeof usage?.input_tokens === 'number' ? usage.input_tokens : undefined;
-          const outputTokens = typeof usage?.output_tokens === 'number' ? usage.output_tokens : undefined;
-          let tokensUsed =
-            typeof inputTokens === 'number' && typeof outputTokens === 'number'
-              ? inputTokens + outputTokens
-              : undefined;
-          const tokensEstimated = tokensUsed == null;
-          if (tokensUsed == null) {
-            const inputText = [systemPrompt, userPromptFinal].filter(Boolean).join('\n\n');
-            tokensUsed = estimateTotalTokens(inputText, reading) ?? undefined;
-          }
-
-          const responseTimeMs = Date.now() - start;
-          let cost: number | undefined;
-          try {
-            const cpk = Number((model as any)?.costPer1kTokens ?? 0);
-            if (tokensUsed != null && Number.isFinite(cpk) && cpk > 0) {
-              cost = Number(((tokensUsed * cpk) / 1000).toFixed(6));
+            if (!resp.ok) {
+              const text = await resp.text().catch(() => '');
+              const err = new Error(`HTTP ${resp.status}: ${resp.statusText} ${text}`.trim());
+              lastErr = err;
+              if (!unlimitedOutput || i === maxTokensAttempts.length - 1) throw err;
+              continue;
             }
-          } catch {
-            // ignore cost calc error
+
+            const data = await resp.json() as any;
+            const reading = extractAnthropicText(data);
+            if (!reading || typeof reading !== 'string') {
+              throw new Error('AI返回结果格式错误或为空');
+            }
+
+            const usage = data?.usage || {};
+            const inputTokens = typeof usage?.input_tokens === 'number' ? usage.input_tokens : undefined;
+            const outputTokens = typeof usage?.output_tokens === 'number' ? usage.output_tokens : undefined;
+            let tokensUsed =
+              typeof inputTokens === 'number' && typeof outputTokens === 'number'
+                ? inputTokens + outputTokens
+                : undefined;
+            const tokensEstimated = tokensUsed == null;
+            if (tokensUsed == null) {
+              const inputText = [systemPrompt, userPromptFinal].filter(Boolean).join('\n\n');
+              tokensUsed = estimateTotalTokens(inputText, reading) ?? undefined;
+            }
+
+            const responseTimeMs = Date.now() - start;
+            let cost: number | undefined;
+            try {
+              const cpk = Number((model as any)?.costPer1kTokens ?? 0);
+              if (tokensUsed != null && Number.isFinite(cpk) && cpk > 0) {
+                cost = Number(((tokensUsed * cpk) / 1000).toFixed(6));
+              }
+            } catch {
+              // ignore cost calc error
+            }
+
+            try {
+              logger.info('[Reading] success', { 模型: model.name, 提供商: (provider as any)?.name || 'unknown', 请求ID: data?.id ?? null });
+            } catch (_) {}
+
+            return {
+              reading,
+              modelId: (model as any).id ?? null,
+              modelName: model.name,
+              providerName: provider?.name || 'unknown',
+              tokensUsed,
+              tokensEstimated,
+              cost,
+              responseTimeMs,
+              requestId: data?.id,
+            };
           }
 
-          try {
-            logger.info('[Reading] success', { 模型: model.name, 提供商: (provider as any)?.name || 'unknown', 请求ID: data?.id ?? null });
-          } catch (_) {}
-
-          return {
-            reading,
-            modelId: (model as any).id ?? null,
-            modelName: model.name,
-            providerName: provider?.name || 'unknown',
-            tokensUsed,
-            tokensEstimated,
-            cost,
-            responseTimeMs,
-            requestId: data?.id,
-          };
+          throw lastErr instanceof Error ? lastErr : new Error('Anthropic 请求失败');
         }
 
         if (providerType === 'gemini') {
           const apiUrl = buildGeminiGenerateContentUrl(base, originalModelName);
-          const generationConfig: any = {};
-          if (typeof params.temperature === 'number') generationConfig.temperature = params.temperature;
-          if (typeof params.top_p === 'number') generationConfig.topP = params.top_p;
-          if (typeof maxTokens === 'number') generationConfig.maxOutputTokens = maxTokens;
-
           const combinedPrompt = systemPrompt ? `${systemPrompt}\n\n${userPromptFinal}` : userPromptFinal;
-          const requestBody: any = {
-            contents: [{ role: 'user', parts: [{ text: combinedPrompt }] }],
+
+          const buildRequestBody = (outputTokens?: number) => {
+            const generationConfig: any = {};
+            if (typeof params.temperature === 'number') generationConfig.temperature = params.temperature;
+            if (typeof params.top_p === 'number') generationConfig.topP = params.top_p;
+            if (typeof outputTokens === 'number' && outputTokens > 0) generationConfig.maxOutputTokens = outputTokens;
+
+            const body: any = {
+              contents: [{ role: 'user', parts: [{ text: combinedPrompt }] }],
+            };
+            if (Object.keys(generationConfig).length > 0) body.generationConfig = generationConfig;
+            return body;
           };
-          if (Object.keys(generationConfig).length > 0) {
-            requestBody.generationConfig = generationConfig;
+
+          const fetchOnce = async (outputTokens?: number) => {
+            const resp = await fetch(apiUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-goog-api-key': apiKey,
+                'Accept': 'application/json',
+              },
+              body: JSON.stringify(buildRequestBody(outputTokens)),
+            });
+            if (!resp.ok) {
+              const text = await resp.text().catch(() => '');
+              throw new Error(`HTTP ${resp.status}: ${resp.statusText} ${text}`.trim());
+            }
+            return resp.json();
+          };
+
+          let data: any;
+          if (typeof maxTokens === 'number' && maxTokens > 0) {
+            try {
+              data = await fetchOnce(maxTokens);
+            } catch (e) {
+              data = await fetchOnce(undefined);
+            }
+          } else {
+            data = await fetchOnce(undefined);
           }
 
-          const resp = await fetch(apiUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-goog-api-key': apiKey,
-              'Accept': 'application/json',
-            },
-            body: JSON.stringify(requestBody),
-          });
-
-          if (!resp.ok) {
-            const text = await resp.text().catch(() => '');
-            throw new Error(`HTTP ${resp.status}: ${resp.statusText} ${text}`.trim());
-          }
-
-          const data = await resp.json() as any;
           const reading = extractGeminiText(data);
           if (!reading || typeof reading !== 'string') {
             throw new Error('AI返回结果格式错误或为空');
@@ -497,7 +531,6 @@ export class AIChatService {
           let tokensUsed = typeof usage?.totalTokenCount === 'number' ? usage.totalTokenCount : undefined;
           const tokensEstimated = tokensUsed == null;
           if (tokensUsed == null) {
-            const combinedPrompt = systemPrompt ? `${systemPrompt}\n\n${userPromptFinal}` : userPromptFinal;
             tokensUsed = estimateTotalTokens(combinedPrompt, reading) ?? undefined;
           }
 

@@ -93,7 +93,7 @@ async function main() {
         apiKeyEncrypted: encryptedApiKey,
         parameters: {
           temperature: 0.7,
-          max_tokens: 3000,
+          max_tokens: 0,
           top_p: 1.0,
           frequency_penalty: 0.0,
           presence_penalty: 0.0,
@@ -111,7 +111,7 @@ async function main() {
         modelType: 'chat',
         parameters: {
           temperature: 0.7,
-          max_tokens: 3000,
+          max_tokens: 0,
           top_p: 1.0,
           frequency_penalty: 0.0,
           presence_penalty: 0.0,

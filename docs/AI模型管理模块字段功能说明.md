@@ -23,7 +23,7 @@ AI 模型管理模块提供了完整的模型配置、创建、编辑和查看�
 | 角色 | `role` | Select | secondary | 模型角色定位：主模型、备用模型、禁用 |
 | 优先级 | `priority` | Number | 100 | 数值越小优先级越高，范围1-1000 |
 | 成本/1K tokens | `costPer1kTokens` | Number | 0 | 每1000个token的成本（人民币），支持6位小数 |
-| 上下文窗口 | `contextWindow` | Number | 4000 | 模型支持的最大上下文tokens数量，范围1-32000 |
+| 上下文窗口 | `contextWindow` | Number | 默认（上游） | 不填写=上游默认；如填写则覆盖 |
 | 启用状态 | `isActive` | Switch | true | 模型是否启用，控制模型可用性 |
 
 ### 3. 模型参数字段
@@ -31,7 +31,7 @@ AI 模型管理模块提供了完整的模型配置、创建、编辑和查看�
 | 字段名 | 字段标识 | 类型 | 默认值 | 功能说明 |
 |--------|----------|------|--------|----------|
 | 温度参数 | `parameters.temperature` | Number | 0.7 | 控制输出随机性，范围0-2，值越高越随机 |
-| 最大令牌数 | `parameters.max_tokens` | Number | 3000 | 单次生成的最大令牌数量，范围1-8000 |
+| 最大令牌数 | `parameters.max_tokens` | Number | 0 | 0表示不传（由上游决定；Anthropic 因接口要求会自动用可用上限并回退） |
 | Top P参数 | `parameters.top_p` | Number | 1.0 | 核采样参数，控制词汇选择范围，范围0-1 |
 | 频率惩罚 | `parameters.frequency_penalty` | Number | 0 | 减少重复内容的惩罚参数，范围-2到2 |
 

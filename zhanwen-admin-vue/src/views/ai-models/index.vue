@@ -285,7 +285,7 @@
           <ElInput
             v-model="formData.contextWindow"
             inputmode="numeric"
-            placeholder="请输入上下文窗口，例如 128000"
+            placeholder="默认"
             clearable
           />
         </ElFormItem>
@@ -319,7 +319,7 @@
           ¥{{ formatCost(detailData?.costPer1kTokens as any) }}
         </ElDescriptionsItem>
         <ElDescriptionsItem label="上下文窗口">
-          {{ detailData?.contextWindow || '-' }}
+          {{ formatContextWindow(detailData?.contextWindow) }}
         </ElDescriptionsItem>
         <ElDescriptionsItem label="启用状态">
           <ElTag :type="detailData?.isActive ? 'success' : 'info'">
@@ -465,6 +465,9 @@
     }
   }
 
+  const DEFAULT_CONTEXT_WINDOW = 2000000
+  const initialContextWindow = ref<number>(DEFAULT_CONTEXT_WINDOW)
+
   // 表格引用
   const tableRef = ref()
   const searchBarRef = ref()
@@ -602,7 +605,7 @@
     role: 'secondary',
     priority: 5,
     costPer1kTokens: 0,
-    contextWindow: 4000,
+    contextWindow: '',
     enabled: true
   })
 
@@ -908,9 +911,10 @@
       role: 'secondary',
       priority: 5,
       costPer1kTokens: 0,
-      contextWindow: 4000,
+      contextWindow: '',
       enabled: true
     })
+    initialContextWindow.value = DEFAULT_CONTEXT_WINDOW
     batchSelectedIds.value = []
     providerModels.value = []
     // 先打开对话框，提升交互响应速度
@@ -932,6 +936,10 @@
             const m = (providersList.value || []).find((p) => p.displayName === s || p.name === s)
             return m?.name || s
           })()
+    const cwRaw = (row as any).contextWindow
+    const cwNum = typeof cwRaw === 'number' ? cwRaw : Number(cwRaw)
+    const cw = Number.isFinite(cwNum) && cwNum >= 1 ? Math.trunc(cwNum) : DEFAULT_CONTEXT_WINDOW
+    initialContextWindow.value = cw
     Object.assign(formData, {
       id: row.id,
       name: row.name || '',
@@ -942,7 +950,7 @@
       role: (row as any).role || 'secondary',
       priority: (row as any).priority ?? 5,
       costPer1kTokens: (row as any).costPer1kTokens ?? 0,
-      contextWindow: (row as any).contextWindow ?? 0,
+      contextWindow: cw === DEFAULT_CONTEXT_WINDOW ? '' : cw,
       enabled: (row as any).enabled ?? (row as any).isActive ?? true
     })
 
@@ -1102,7 +1110,30 @@
       // 清理空字段，避免后端校验报错
       if (!basePayload.displayName) delete basePayload.displayName
       if (basePayload.costPer1kTokens === '' || basePayload.costPer1kTokens === null) delete basePayload.costPer1kTokens
-      if (basePayload.contextWindow === '' || basePayload.contextWindow === null) delete basePayload.contextWindow
+      {
+        const raw = basePayload.contextWindow
+        const isUpdate = !!formData.id
+
+        if (raw === '' || raw === null || raw === undefined) {
+          if (isUpdate && initialContextWindow.value !== DEFAULT_CONTEXT_WINDOW) {
+            basePayload.contextWindow = DEFAULT_CONTEXT_WINDOW
+          } else {
+            delete basePayload.contextWindow
+          }
+        } else {
+          const n = Number(raw)
+          const v = Number.isFinite(n) ? Math.trunc(n) : undefined
+          if (v == null || v < 1) {
+            delete basePayload.contextWindow
+          } else if (isUpdate) {
+            if (v === initialContextWindow.value) delete basePayload.contextWindow
+            else basePayload.contextWindow = v
+          } else {
+            if (v === DEFAULT_CONTEXT_WINDOW) delete basePayload.contextWindow
+            else basePayload.contextWindow = v
+          }
+        }
+      }
       basePayload.isActive = !!basePayload.enabled
       delete basePayload.enabled
       delete basePayload.id
@@ -1190,6 +1221,14 @@
     const num = Number(val ?? 0)
     if (Number.isNaN(num)) return '0.0000'
     return num.toFixed(4)
+  }
+
+  const formatContextWindow = (val: any) => {
+    const n = typeof val === 'number' ? val : Number(val)
+    if (!Number.isFinite(n) || n <= 0) return '默认（上游决定）'
+    const v = Math.trunc(n)
+    if (v === DEFAULT_CONTEXT_WINDOW) return '默认（上游决定）'
+    return String(v)
   }
 
   // 耗时格式化（秒）

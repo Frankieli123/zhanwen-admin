@@ -43,7 +43,7 @@ CREATE TABLE ai_models (
     model_type VARCHAR(50) DEFAULT 'chat',       -- 模型类型
     parameters JSONB DEFAULT '{
         "temperature": 0.7,
-        "max_tokens": 3000,
+        "max_tokens": 0,
         "top_p": 1.0,
         "frequency_penalty": 0.0,
         "presence_penalty": 0.0
@@ -51,7 +51,7 @@ CREATE TABLE ai_models (
     role VARCHAR(20) DEFAULT 'secondary',        -- primary/secondary/disabled
     priority INTEGER DEFAULT 100,               -- 优先级 (数字越小优先级越高)
     cost_per_1k_tokens DECIMAL(10,6) DEFAULT 0, -- 每1K tokens成本
-    context_window INTEGER DEFAULT 4000,        -- 上下文窗口大小
+    context_window INTEGER DEFAULT 2000000,     -- 上下文窗口大小
     is_active BOOLEAN DEFAULT true,
     metadata JSONB DEFAULT '{}',
     created_at TIMESTAMP DEFAULT NOW(),
