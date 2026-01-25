@@ -252,7 +252,7 @@ function buildUserPrompt(result: any, userIntro: string, userGuidelines: string)
     const useEl = convertElementToChinese(tiYongRelation?.useElement);
     const useYY = convertYinYangToChinese(tiYongRelation?.useYinYang);
     const rel = convertTiYongRelationToChinese(tiYongRelation?.relation);
-    prompt += `\n体用关系: 体=${bodyEl}(${bodyYY}) 用=${useEl}(${useYY}) 关系=${rel}\n`;
+    prompt += `\n体用关系: 体=${bodyEl}(${bodyYY})[落宫] 用=${useEl}(${useYY})[时辰] 关系=${rel}\n`;
   }
 
   prompt += `\n${userGuidelines}`;
