@@ -16,6 +16,16 @@ export function useTheme() {
   }
 
   // 启用过渡效果
+  const updateThemeColorMeta = () => {
+    const meta = document.querySelector('meta[name="theme-color"]')
+    if (!meta) return
+
+    const bgColor = getComputedStyle(document.documentElement).getPropertyValue('--art-bg-color').trim()
+    if (!bgColor) return
+
+    meta.setAttribute('content', bgColor)
+  }
+
   const enableTransitions = () => {
     const style = document.getElementById('disable-transitions')
     if (style) {
@@ -58,6 +68,7 @@ export function useTheme() {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         enableTransitions()
+        updateThemeColorMeta()
       })
     })
   }

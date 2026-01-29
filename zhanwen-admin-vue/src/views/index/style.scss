@@ -4,6 +4,7 @@
   box-sizing: border-box;
   width: 100%;
   min-height: 100vh;
+  min-height: 100dvh;
   overflow: hidden;
   background: var(--art-bg-color);
   transition: padding 0.3s ease-in-out;
@@ -29,6 +30,7 @@
   .layouts {
     width: 100%;
     min-height: 100vh;
+    min-height: 100dvh;
     padding-left: 0 !important;
     overflow-y: scroll;
 
