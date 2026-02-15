@@ -215,6 +215,29 @@ function buildUserPrompt(result: any, userIntro: string, userGuidelines: string)
   }
 
   if (isTimeHexagram === false) {
+    const ti = result?.timeInfo;
+    if (ti && typeof ti === 'object') {
+      const lunarDate = typeof (ti as any)?.lunarDate === 'string' ? String((ti as any).lunarDate).trim() : '';
+      const hourRaw = (ti as any)?.hour;
+      const hourNum = typeof hourRaw === 'number' ? hourRaw : Number(hourRaw);
+      let hourIndex: number | null = null;
+      if (Number.isFinite(hourNum)) {
+        if (hourNum >= 0 && hourNum <= 11) {
+          hourIndex = hourNum;
+        } else {
+          const h = ((hourNum % 24) + 24) % 24;
+          hourIndex = Math.floor(((h + 1) % 24) / 2);
+        }
+      }
+      const branches = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'] as const;
+      const branchLabel = hourIndex == null ? '' : `${branches[((hourIndex % 12) + 12) % 12]}时`;
+      if (lunarDate || branchLabel) {
+        prompt += `\n活时卦时间(农历): ${lunarDate}${lunarDate && branchLabel ? ' ' : ''}${branchLabel}\n`;
+      }
+    }
+  }
+
+  if (isTimeHexagram === false) {
     const n = result?.numbers;
     if (n && typeof n === 'object') {
       const sky = (n as any).sky;
